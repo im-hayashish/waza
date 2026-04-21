@@ -104,7 +104,7 @@ func (p *promptGrader) gradeIndependent(ctx context.Context, gradingContext *Con
 			return nil, fmt.Errorf("failed to start up copilot session for prompt grading: %w", err)
 		}
 
-		session.On(utils.SessionToSlog)
+		session.On(utils.NewSessionToSlog())
 
 		resp, err := session.SendAndWait(ctx, copilot.MessageOptions{
 			Prompt: p.args.Prompt,
@@ -380,7 +380,7 @@ func (p *promptGrader) runPairwiseOnce(
 		return nil, fmt.Errorf("failed to create session for pairwise grading: %w", err)
 	}
 
-	session.On(utils.SessionToSlog)
+	session.On(utils.NewSessionToSlog())
 
 	prompt := buildPairwisePrompt(p.args.Prompt, outputA, outputB, labelA, labelB)
 

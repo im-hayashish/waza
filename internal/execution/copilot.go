@@ -237,7 +237,7 @@ func (e *CopilotEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Ex
 	e.usageCollectors[sessionID] = usageCollector
 	e.usageCollectorsMu.Unlock()
 
-	unsubscribe := session.On(utils.SessionToSlog)
+	unsubscribe := session.On(utils.NewSessionToSlog())
 	defer unsubscribe()
 
 	// Send prompt with updated API
