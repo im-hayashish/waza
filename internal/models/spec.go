@@ -95,6 +95,11 @@ func (g *GraderConfig) UnmarshalYAML(node *yaml.Node) error {
 	g.Weight = raw.Weight
 	g.Parameters = params
 
+	// Validate grader-type-specific required fields
+	if err := g.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -104,6 +109,96 @@ func (g *GraderConfig) EffectiveWeight() float64 {
 		return 1.0
 	}
 	return g.Weight
+}
+
+// Validate checks that the grader config has required fields for its type.
+func (g *GraderConfig) Validate() error {
+	switch g.Kind {
+	case GraderKindInlineScript:
+		params, ok := g.Parameters.(InlineScriptGraderParameters)
+		if !ok {
+			return fmt.Errorf("code grader %q: expected InlineScriptGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.Assertions) == 0 {
+			return fmt.Errorf("code grader %q: must have at least one assertion in config.assertions", g.Identifier)
+		}
+
+	case GraderKindDiff:
+		params, ok := g.Parameters.(DiffGraderParameters)
+		if !ok {
+			return fmt.Errorf("diff grader %q: expected DiffGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.ExpectedFiles) == 0 {
+			return fmt.Errorf("diff grader %q: must have at least one file in config.expected_files", g.Identifier)
+		}
+
+	case GraderKindJSONSchema:
+		params, ok := g.Parameters.(JSONSchemaGraderParameters)
+		if !ok {
+			return fmt.Errorf("json_schema grader %q: expected JSONSchemaGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if params.Schema == nil && params.SchemaFile == "" {
+			return fmt.Errorf("json_schema grader %q: must specify either config.schema or config.schema_file", g.Identifier)
+		}
+
+	case GraderKindProgram:
+		params, ok := g.Parameters.(ProgramGraderParameters)
+		if !ok {
+			return fmt.Errorf("program grader %q: expected ProgramGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if params.Command == "" {
+			return fmt.Errorf("program grader %q: must specify config.command", g.Identifier)
+		}
+
+	case GraderKindTrigger:
+		params, ok := g.Parameters.(TriggerHeuristicGraderParameters)
+		if !ok {
+			return fmt.Errorf("trigger grader %q: expected TriggerHeuristicGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if params.SkillPath == "" {
+			return fmt.Errorf("trigger grader %q: must specify config.skill_path", g.Identifier)
+		}
+
+	case GraderKindActionSequence:
+		params, ok := g.Parameters.(ActionSequenceGraderParameters)
+		if !ok {
+			return fmt.Errorf("action_sequence grader %q: expected ActionSequenceGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.ExpectedActions) == 0 {
+			return fmt.Errorf("action_sequence grader %q: must have at least one action in config.expected_actions", g.Identifier)
+		}
+
+	case GraderKindSkillInvocation:
+		params, ok := g.Parameters.(SkillInvocationGraderParameters)
+		if !ok {
+			return fmt.Errorf("skill_invocation grader %q: expected SkillInvocationGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.RequiredSkills) == 0 {
+			return fmt.Errorf("skill_invocation grader %q: must have at least one skill in config.required_skills", g.Identifier)
+		}
+
+	case GraderKindToolConstraint:
+		params, ok := g.Parameters.(ToolConstraintGraderParameters)
+		if !ok {
+			return fmt.Errorf("tool_constraint grader %q: expected ToolConstraintGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.ExpectTools) == 0 && len(params.RejectTools) == 0 {
+			return fmt.Errorf("tool_constraint grader %q: must have at least one tool in config.expect_tools or config.reject_tools", g.Identifier)
+		}
+
+	case GraderKindFile:
+		params, ok := g.Parameters.(FileGraderParameters)
+		if !ok {
+			return fmt.Errorf("file grader %q: expected FileGraderParameters, got %T", g.Identifier, g.Parameters)
+		}
+		if len(params.MustExist) == 0 && len(params.MustNotExist) == 0 && len(params.ContentPatterns) == 0 {
+			return fmt.Errorf("file grader %q: must specify at least one of config.must_exist, config.must_not_exist, or config.content_patterns", g.Identifier)
+		}
+
+		// GraderKindText, GraderKindBehavior, GraderKindPrompt allow empty configs
+	}
+
+	return nil
 }
 
 // MeasurementDef defines a metric

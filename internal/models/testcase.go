@@ -113,6 +113,101 @@ func (v *ValidatorInline) UnmarshalYAML(node *yaml.Node) error {
 	v.Weight = raw.Weight
 	v.Parameters = params
 
+	// Validate grader-type-specific required fields
+	if err := v.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Validate checks that the validator config has required fields for its type.
+func (v *ValidatorInline) Validate() error {
+	switch v.Kind {
+	case GraderKindInlineScript:
+		params, ok := v.Parameters.(InlineScriptGraderParameters)
+		if !ok {
+			return fmt.Errorf("code grader %q: expected InlineScriptGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.Assertions) == 0 {
+			return fmt.Errorf("code grader %q: must have at least one assertion in config.assertions", v.Identifier)
+		}
+
+	case GraderKindDiff:
+		params, ok := v.Parameters.(DiffGraderParameters)
+		if !ok {
+			return fmt.Errorf("diff grader %q: expected DiffGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.ExpectedFiles) == 0 {
+			return fmt.Errorf("diff grader %q: must have at least one file in config.expected_files", v.Identifier)
+		}
+
+	case GraderKindJSONSchema:
+		params, ok := v.Parameters.(JSONSchemaGraderParameters)
+		if !ok {
+			return fmt.Errorf("json_schema grader %q: expected JSONSchemaGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if params.Schema == nil && params.SchemaFile == "" {
+			return fmt.Errorf("json_schema grader %q: must specify either config.schema or config.schema_file", v.Identifier)
+		}
+
+	case GraderKindProgram:
+		params, ok := v.Parameters.(ProgramGraderParameters)
+		if !ok {
+			return fmt.Errorf("program grader %q: expected ProgramGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if params.Command == "" {
+			return fmt.Errorf("program grader %q: must specify config.command", v.Identifier)
+		}
+
+	case GraderKindTrigger:
+		params, ok := v.Parameters.(TriggerHeuristicGraderParameters)
+		if !ok {
+			return fmt.Errorf("trigger grader %q: expected TriggerHeuristicGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if params.SkillPath == "" {
+			return fmt.Errorf("trigger grader %q: must specify config.skill_path", v.Identifier)
+		}
+
+	case GraderKindActionSequence:
+		params, ok := v.Parameters.(ActionSequenceGraderParameters)
+		if !ok {
+			return fmt.Errorf("action_sequence grader %q: expected ActionSequenceGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.ExpectedActions) == 0 {
+			return fmt.Errorf("action_sequence grader %q: must have at least one action in config.expected_actions", v.Identifier)
+		}
+
+	case GraderKindSkillInvocation:
+		params, ok := v.Parameters.(SkillInvocationGraderParameters)
+		if !ok {
+			return fmt.Errorf("skill_invocation grader %q: expected SkillInvocationGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.RequiredSkills) == 0 {
+			return fmt.Errorf("skill_invocation grader %q: must have at least one skill in config.required_skills", v.Identifier)
+		}
+
+	case GraderKindToolConstraint:
+		params, ok := v.Parameters.(ToolConstraintGraderParameters)
+		if !ok {
+			return fmt.Errorf("tool_constraint grader %q: expected ToolConstraintGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.ExpectTools) == 0 && len(params.RejectTools) == 0 {
+			return fmt.Errorf("tool_constraint grader %q: must have at least one tool in config.expect_tools or config.reject_tools", v.Identifier)
+		}
+
+	case GraderKindFile:
+		params, ok := v.Parameters.(FileGraderParameters)
+		if !ok {
+			return fmt.Errorf("file grader %q: expected FileGraderParameters, got %T", v.Identifier, v.Parameters)
+		}
+		if len(params.MustExist) == 0 && len(params.MustNotExist) == 0 && len(params.ContentPatterns) == 0 {
+			return fmt.Errorf("file grader %q: must specify at least one of config.must_exist, config.must_not_exist, or config.content_patterns", v.Identifier)
+		}
+
+		// GraderKindText, GraderKindBehavior, GraderKindPrompt allow empty configs
+	}
+
 	return nil
 }
 
