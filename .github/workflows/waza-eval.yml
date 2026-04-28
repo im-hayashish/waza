@@ -68,6 +68,9 @@ on:
       - 'examples/**/*.yaml'
       - 'examples/**/*.yml'
       - 'skills/**'
+      - 'internal/execution/**'
+      - 'internal/orchestration/**'
+      - 'internal/graders/**'
       - '.github/workflows/waza-eval.yml'
   
   # Trigger on push to main branches
@@ -77,6 +80,9 @@ on:
       - 'examples/**/*.yaml'
       - 'examples/**/*.yml'
       - 'skills/**'
+      - 'internal/execution/**'
+      - 'internal/orchestration/**'
+      - 'internal/graders/**'
       - '.github/workflows/waza-eval.yml'
 
 jobs:

@@ -117,3 +117,4 @@ All code roles now use `claude-opus-4.6`. Docs/Scribe/diversity use `gemini-3-pr
 ## Learnings
 - Windows local test runs can fail in `cmd/waza/tokens/internal/git` when temporary repos inherit strict CRLF behavior; setting `core.autocrlf=false` and `core.safecrlf=false` inside test repo setup makes these tests cross-platform stable.
 - PR conflict resolution for `copilot/migrate-copilot-client-usage` in `internal/execution/copilot_test.go` should keep the `TestCopilotExecute_InitializePropagatesStartError` variant from main to preserve startup error propagation coverage.
+- Mock engine contract: the mock must echo task metadata (name, description), context values, and file content (capped at 1KB) in its response. Without this, `output_contains` graders can't validate anything meaningful in CI since the mock doesn't reason about code. The `ExecutionRequest` now carries `TaskName` and `TaskDescription` fields to support this.

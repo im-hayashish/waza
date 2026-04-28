@@ -37,7 +37,8 @@ func TestMockEngine_Execute_WritesResources(t *testing.T) {
 	require.NotNil(t, resp)
 	assert.True(t, resp.Success)
 	assert.Contains(t, resp.FinalOutput, "Mock response for: hello")
-	assert.Contains(t, resp.FinalOutput, "Analyzed 1 file(s)")
+	assert.Contains(t, resp.FinalOutput, "Analyzed 1 file(s):")
+	assert.Contains(t, resp.FinalOutput, "test-content")
 
 	content, err := os.ReadFile(filepath.Join(resp.WorkspaceDir, "fixtures", "input.txt"))
 	require.NoError(t, err)
@@ -88,6 +89,52 @@ func TestMockEngine_Execute_SetupResourcesError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, resp)
 	assert.Contains(t, err.Error(), "failed to setup mock workspace resources")
+
+	require.NoError(t, engine.Shutdown(context.Background()))
+}
+
+func TestMockEngine_Execute_IncludesResourceContent(t *testing.T) {
+	engine := NewMockEngine("test-model")
+	require.NoError(t, engine.Initialize(context.Background()))
+
+	jsContent := "async function fetchUser(id) {\n  const resp = await fetch(`/api/users/${id}`);\n  return resp.json();\n}"
+
+	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
+		Message: "What does this code do?",
+		Resources: []ResourceFile{
+			{Path: "fetch_user.js", Content: []byte(jsContent)},
+			{Path: "empty.txt", Content: nil},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// File content should appear in output so output_contains graders can match
+	assert.Contains(t, resp.FinalOutput, "async function fetchUser")
+	assert.Contains(t, resp.FinalOutput, "await fetch")
+	assert.Contains(t, resp.FinalOutput, "fetch_user.js")
+	assert.Contains(t, resp.FinalOutput, "Analyzed 2 file(s):")
+	// Empty file should still list path but no content
+	assert.Contains(t, resp.FinalOutput, "empty.txt")
+
+	require.NoError(t, engine.Shutdown(context.Background()))
+}
+
+func TestMockEngine_Execute_TruncatesLargeContent(t *testing.T) {
+	engine := NewMockEngine("test-model")
+	require.NoError(t, engine.Initialize(context.Background()))
+
+	largeContent := make([]byte, 2048)
+	for i := range largeContent {
+		largeContent[i] = 'x'
+	}
+
+	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
+		Message:   "analyze",
+		Resources: []ResourceFile{{Path: "big.txt", Content: largeContent}},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, resp.FinalOutput, "...(truncated)")
 
 	require.NoError(t, engine.Shutdown(context.Background()))
 }

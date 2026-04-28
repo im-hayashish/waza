@@ -45,6 +45,12 @@ type ExecutionRequest struct {
 	WorkspaceDir string // Reuse an existing workspace directory (for follow-up prompts)
 	SkillName    string
 
+	// TaskName and TaskDescription carry test-case metadata so mock engines can
+	// echo them, enabling output_contains expectations that reference task-level
+	// concepts (e.g., "recursive") without a real model.
+	TaskName        string
+	TaskDescription string
+
 	SourceDir  string   // used when looking for workspace items via relative path, like skills.
 	SkillPaths []string // Directories to search for skills
 	NoSkills   bool     // When true, skip all skill loading

@@ -1158,14 +1158,16 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) *execution.Execu
 	noSkills := spec.Config.AllSkillsDisabled()
 
 	return &execution.ExecutionRequest{
-		Message:    tc.Stimulus.Message,
-		Context:    tc.Stimulus.Metadata,
-		Resources:  resources,
-		SkillName:  spec.SkillName,
-		SkillPaths: resolvedSkillPaths,
-		NoSkills:   noSkills,
-		Timeout:    time.Duration(timeout) * time.Second,
-		MCPServers: convertMCPServers(spec.Config.ServerConfigs),
+		Message:         tc.Stimulus.Message,
+		Context:         tc.Stimulus.Metadata,
+		Resources:       resources,
+		SkillName:       spec.SkillName,
+		TaskName:        tc.DisplayName,
+		TaskDescription: tc.Summary,
+		SkillPaths:      resolvedSkillPaths,
+		NoSkills:        noSkills,
+		Timeout:         time.Duration(timeout) * time.Second,
+		MCPServers:      convertMCPServers(spec.Config.ServerConfigs),
 	}
 }
 

@@ -78,9 +78,37 @@ func (m *MockEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Execu
 	// Simple mock response
 	output := fmt.Sprintf("Mock response for: %s", req.Message)
 
-	// Add some context if files are present
+	// Echo task metadata so output_contains expectations that reference
+	// task-level concepts (e.g., "recursive", "list") can match.
+	if req.TaskName != "" {
+		output += fmt.Sprintf("\nTask: %s", req.TaskName)
+	}
+	if req.TaskDescription != "" {
+		output += fmt.Sprintf("\nDescription: %s", req.TaskDescription)
+	}
+
+	// Echo context metadata
+	if len(req.Context) > 0 {
+		output += "\nContext:"
+		for k, v := range req.Context {
+			output += fmt.Sprintf("\n  %s: %v", k, v)
+		}
+	}
+
+	// Echo file paths and a content preview so output_contains expectations
+	// against file content can match without needing a real model.
 	if len(req.Resources) > 0 {
-		output += fmt.Sprintf("\nAnalyzed %d file(s)", len(req.Resources))
+		output += fmt.Sprintf("\nAnalyzed %d file(s):", len(req.Resources))
+		for _, r := range req.Resources {
+			output += fmt.Sprintf("\n  - %s", r.Path)
+			if len(r.Content) > 0 {
+				preview := string(r.Content)
+				if len(preview) > 1024 {
+					preview = preview[:1024] + "...(truncated)"
+				}
+				output += "\n" + preview
+			}
+		}
 	}
 
 	// Pass through session ID for follow-up continuity
