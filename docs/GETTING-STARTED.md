@@ -2,6 +2,8 @@
 
 A complete walkthrough for creating, testing, and validating AI agent skills.
 
+> **Custom Agents:** Waza also supports evaluating VS Code custom agents (`.agent.md` files) with automatic tool constraint validation. This guide focuses on `SKILL.md`-based skills — see the [Custom Agents guide](https://microsoft.github.io/waza/guides/custom-agents/) for `.agent.md` evaluation.
+
 ## Prerequisites
 
 - **waza** installed (see [Installation](../README.md#installation))

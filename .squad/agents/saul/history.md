@@ -50,3 +50,11 @@ All code roles now use `claude-opus-4.6`. Docs/Scribe/diversity use `gemini-3-pr
 - azd extension section includes full install command with versioned tar.gz URL
 - Sidebar updated in astro.config.mjs under Reference group
 - Pattern: release pages should link to GitHub Releases for history rather than duplicating old changelogs
+
+### Cross-Reference Audit (#222/#226/#228)
+
+- **#222 rename was thorough** — no stale `BenchmarkSpec`/`TestRunner` references found in any auditable docs. The rename PR updated all code-facing references correctly.
+- **#226 custom agent coverage** had gaps in onboarding paths — quick-start, getting-started (both site and docs/), GUIDE, TUTORIAL, and examples/README all lacked `.agent.md` mentions. Pattern: when adding a new target type, check all "getting started" entry points, not just the feature-specific guide.
+- **#228 mock engine** — the mock description in INTEGRATION-TESTING.md and eval-yaml.mdx was outdated (said "Simulates responses" when it now echoes task metadata and file content). Pattern: executor behavior changes need doc updates in the executor reference table.
+- **Design docs** (`docs/design/194-baseline-skill-impact.md`) still reference `BenchmarkSpec`/`TestRunner` — correct, these are historical point-in-time design documents.
+- **examples/README.md** was missing 3 example directories that had been added over time (custom-agent, required-skills-demo, rubrics).

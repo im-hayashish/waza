@@ -57,6 +57,47 @@ See [ci/README.md](./ci/README.md) for integration instructions.
 
 ---
 
+### 4. [custom-agent](./custom-agent/)
+**Purpose**: Evaluate a VS Code custom agent (`.agent.md`) with automatic tool constraint validation
+
+**Demonstrates**:
+- Targeting a `.agent.md` file instead of `SKILL.md`
+- Auto-injected `tool_constraint` grader from agent frontmatter
+- Security-focused agent evaluation tasks
+
+**Quick Start**:
+```bash
+waza run examples/custom-agent/eval.yaml --context-dir examples/custom-agent/fixtures -v
+```
+
+---
+
+### 5. [required-skills-demo](./required-skills-demo/)
+**Purpose**: Demonstrate `required_skills` preflight validation
+
+**Demonstrates**:
+- Declaring skill dependencies in eval config
+- Preflight validation before eval execution
+- Orchestration skill evaluation patterns
+
+**Quick Start**:
+See [required-skills-demo/README.md](./required-skills-demo/README.md) for details.
+
+---
+
+### 6. [rubrics](./rubrics/)
+**Purpose**: Pre-built evaluation rubrics adapted from Azure ML built-in evaluators
+
+**Demonstrates**:
+- `prompt` grader rubric configurations
+- Tool call accuracy, selection, and output utilization rubrics
+- Task adherence and intent resolution scoring
+
+**Quick Start**:
+See [rubrics/README.md](./rubrics/README.md) for available rubrics and usage.
+
+---
+
 ## Usage Patterns
 
 ### Running Examples
@@ -107,6 +148,9 @@ waza run examples/<example-name>/eval.yaml -o results.json
 | **code-explainer** | Complete real-world eval | Medium | code, regex, script |
 | **grader-showcase** | Learning grader types | Low | All types |
 | **ci** | GitHub Actions integration | Low | N/A (workflow examples) |
+| **custom-agent** | `.agent.md` evaluation | Low | tool_constraint, output_contains |
+| **required-skills-demo** | Skill dependency validation | Low | Preflight checks |
+| **rubrics** | Prompt grader rubrics | Low | prompt (rubric-based) |
 
 ## Learning Path
 

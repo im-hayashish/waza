@@ -2,6 +2,8 @@
 
 This tutorial walks you through creating evaluations for your Agent Skills.
 
+> **Evaluating custom agents?** Waza also supports `.agent.md` files as evaluation targets. The workflow is similar — see [Evaluating Custom Agents](https://microsoft.github.io/waza/guides/custom-agents/) for the differences.
+
 ## Prerequisites
 
 - `waza` CLI installed:

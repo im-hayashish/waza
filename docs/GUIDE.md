@@ -7,6 +7,7 @@ Welcome to **Waza**, a CLI tool for evaluating AI agent skills. This guide cover
 Waza helps you:
 
 - **Define agent skills** with comprehensive documentation and behavioral requirements
+- **Evaluate custom agents** (`.agent.md` files) with automatic tool constraint validation
 - **Create test suites** with realistic test cases and validation rules  
 - **Run evaluations** against different AI models to measure skill effectiveness
 - **Compare results** across models and versions to track improvement
@@ -319,6 +320,7 @@ Run an evaluation benchmark.
 **Arguments:**
 - `[eval.yaml]` — Path to evaluation spec file
 - `[skill-name]` — Skill name (auto-detects eval.yaml)
+- `[agent-name]` — Custom agent name (auto-detects eval.yaml for `.agent.md` files)
 - *(none)* — Auto-detect using workspace detection
 
 **Flags:**

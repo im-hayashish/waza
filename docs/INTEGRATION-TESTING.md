@@ -81,7 +81,7 @@ waza compare results-gpt4o.json results-claude.json
 
 | Executor | Description | Use Case |
 |----------|-------------|----------|
-| `mock` | Simulates responses | Unit tests, CI without API keys |
+| `mock` | Echoes task metadata, context, and file content previews (up to 1KB per file) | Unit tests, CI without API keys |
 | `copilot-sdk` | Real Copilot agent sessions | Integration tests, benchmarking |
 
 ## CopilotExecutor Features

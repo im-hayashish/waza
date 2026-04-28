@@ -109,7 +109,7 @@ config:
 | `workers`           | int       | 4                 | Number of parallel workers                                  |
 | `model`             | string    | _required_        | Default model for tasks (override with `--model` flag)      |
 | `judge_model`       | string    | (same as `model`) | Model for `prompt`-type graders (LLM-as-judge)              |
-| `executor`          | string    | `copilot-sdk`     | Executor: `mock` (local, fast) or `copilot-sdk` (real API)  |
+| `executor`          | string    | `copilot-sdk`     | Executor: `mock` (local, echoes task metadata and file content) or `copilot-sdk` (real API)  |
 | `max_attempts`      | int       | 0                 | Maximum retry attempts per task on failure (0 = no retries) |
 | `group_by`          | string    | —                 | Group results by a field (e.g., `tags`, `task_id`)          |
 | `fail_fast`         | bool      | false             | Stop the entire run on first task failure                   |
