@@ -5,6 +5,7 @@ package workspace
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,7 +76,7 @@ type WorkspaceContext struct {
 // It checks:
 // 1. CWD for SKILL.md → single-skill
 // 2. Walk up parents for SKILL.md → single-skill (nested inside skill dir)
-// 3. Check for skills/ directory with SKILL.md children → multi-skill
+// 3. Check for skills/ directory with SKILL.md descendants → multi-skill
 // 4. Scan CWD for child dirs containing SKILL.md → multi-skill
 func DetectContext(dir string, opts ...DetectOption) (*WorkspaceContext, error) {
 	o := defaultDetectOptions()
@@ -130,13 +131,19 @@ func DetectContext(dir string, opts ...DetectOption) (*WorkspaceContext, error) 
 
 	var skills []SkillInfo
 	if isDir(skillsDir) {
-		skills = scanForSkills(skillsDir)
+		skills, err = scanForSkills(skillsDir, true)
+		if err != nil {
+			return nil, fmt.Errorf("scanning skills directory %s: %w", skillsDir, err)
+		}
 	}
 
 	// 3b. Also check .github/skills/ directory (GitHub Copilot convention)
 	githubSkillsDir := filepath.Join(absDir, ".github", "skills")
 	if isDir(githubSkillsDir) && !samePath(skillsDir, githubSkillsDir) {
-		githubSkills := scanForSkills(githubSkillsDir)
+		githubSkills, err := scanForSkills(githubSkillsDir, true)
+		if err != nil {
+			return nil, fmt.Errorf("scanning GitHub skills directory %s: %w", githubSkillsDir, err)
+		}
 		skills = mergeSkillsByName(skills, githubSkills)
 	}
 
@@ -150,7 +157,10 @@ func DetectContext(dir string, opts ...DetectOption) (*WorkspaceContext, error) 
 	}
 
 	// 4. Scan immediate children of dir for SKILL.md
-	skills = scanForSkills(absDir)
+	skills, err = scanForSkills(absDir, false)
+	if err != nil {
+		return nil, fmt.Errorf("scanning directory %s: %w", absDir, err)
+	}
 	if len(skills) > 0 {
 		return &WorkspaceContext{
 			Type:     ContextMultiSkill,
@@ -282,16 +292,20 @@ func parseAgentNameFromFile(path string) string {
 	return name
 }
 
-// scanForSkills scans immediate child directories of parentDir for SKILL.md files.
-func scanForSkills(parentDir string) []SkillInfo {
+// scanForSkills scans directories under parentDir for skill definitions.
+func scanForSkills(parentDir string, recursive bool) ([]SkillInfo, error) {
+	if recursive {
+		return scanForSkillsRecursive(parentDir)
+	}
+
 	entries, err := os.ReadDir(parentDir)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	var skills []SkillInfo
 	for _, entry := range entries {
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+		if !entry.IsDir() || shouldSkipSkillScanDir(entry.Name()) {
 			continue
 		}
 		childDir := filepath.Join(parentDir, entry.Name())
@@ -299,7 +313,38 @@ func scanForSkills(parentDir string) []SkillInfo {
 			skills = append(skills, info)
 		}
 	}
-	return skills
+	return skills, nil
+}
+
+func scanForSkillsRecursive(parentDir string) ([]SkillInfo, error) {
+	var skills []SkillInfo
+	err := filepath.WalkDir(parentDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking %s: %w", path, err)
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if path == parentDir {
+			return nil
+		}
+		if shouldSkipSkillScanDir(d.Name()) {
+			return fs.SkipDir
+		}
+		if info, ok := tryParseSkill(path); ok {
+			skills = append(skills, info)
+			return fs.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return skills, nil
+}
+
+func shouldSkipSkillScanDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor"
 }
 
 // parseSkillName reads a SKILL.md file and extracts the skill name from frontmatter.

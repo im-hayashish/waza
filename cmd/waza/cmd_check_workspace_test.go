@@ -145,3 +145,60 @@ func TestCheckCommand_WorkspaceWithSeparatedEval(t *testing.T) {
 	result := output.String()
 	assert.Contains(t, result, "Evaluation Suite: Found")
 }
+
+func TestCheckCommand_WorkspaceByNameNestedSkillWithSeparatedEval(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".waza.yaml"), []byte("paths:\n  skills: skills/\n  evals: evals/\n"), 0o644))
+
+	skillDir := filepath.Join(dir, "skills", "development", "skill-creator")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	content := "---\nname: skill-creator\ndescription: \"Testing nested eval detection.\"\n---\n# Body\n"
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644))
+
+	evalsDir := filepath.Join(dir, "evals", "skill-creator")
+	require.NoError(t, os.MkdirAll(evalsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(evalsDir, "eval.yaml"), []byte("name: test\nskill: skill-creator\n"), 0o644))
+	t.Chdir(dir)
+
+	cmd := newCheckCommand()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"skill-creator"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	result := output.String()
+	assert.Contains(t, result, "skill-creator")
+	assert.Contains(t, result, "Evaluation Suite: Found")
+	assert.NotContains(t, result, "no SKILL.md found")
+}
+
+func TestCheckCommand_ExplicitNestedPathWithSeparatedEval(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".waza.yaml"), []byte("paths:\n  skills: skills/\n  evals: evals/\n"), 0o644))
+
+	skillDir := filepath.Join(dir, "skills", "development", "skill-creator")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	content := "---\nname: skill-creator\ndescription: \"Testing explicit nested path eval detection.\"\n---\n# Body\n"
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644))
+
+	evalsDir := filepath.Join(dir, "evals", "skill-creator")
+	require.NoError(t, os.MkdirAll(evalsDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(evalsDir, "eval.yaml"), []byte("name: test\nskill: skill-creator\n"), 0o644))
+	t.Chdir(dir)
+
+	cmd := newCheckCommand()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{filepath.Join("skills", "development", "skill-creator")})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+
+	result := output.String()
+	assert.Contains(t, result, "skill-creator")
+	assert.Contains(t, result, "Evaluation Suite: Found")
+}

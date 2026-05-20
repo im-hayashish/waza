@@ -423,7 +423,7 @@ func checkReadiness(skillDir string, wsCtx *workspace.WorkspaceContext) (*readin
 	if !report.hasEval {
 		// Try workspace detection from the working directory
 		if wd, wdErr := os.Getwd(); wdErr == nil {
-			if autoCtx, ctxErr := workspace.DetectContext(wd); ctxErr == nil {
+			if autoCtx, ctxErr := workspace.DetectContext(wd, configDetectOptions()...); ctxErr == nil {
 				if evalPath, findErr := workspace.FindEval(autoCtx, sk.Frontmatter.Name); findErr == nil && evalPath != "" {
 					report.hasEval = true
 					report.evalPath = evalPath

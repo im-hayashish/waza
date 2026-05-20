@@ -94,6 +94,32 @@ func TestDetectContext_MultiSkillWithSkillsDir(t *testing.T) {
 	}
 }
 
+func TestDetectContext_MultiSkillNestedCategories(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "skills", "development", "skill-creator", "SKILL.md"), skillMD("skill-creator"))
+	writeFile(t, filepath.Join(root, "skills", "testing", "eval-harness", "SKILL.md"), skillMD("eval-harness"))
+	writeFile(t, filepath.Join(root, "skills", "vendor", "ignored", "SKILL.md"), skillMD("ignored"))
+
+	ctx, err := DetectContext(root)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.Type != ContextMultiSkill {
+		t.Fatalf("expected ContextMultiSkill, got %d", ctx.Type)
+	}
+
+	names := map[string]bool{}
+	for _, s := range ctx.Skills {
+		names[s.Name] = true
+	}
+	if !names["skill-creator"] || !names["eval-harness"] {
+		t.Errorf("expected nested skills skill-creator and eval-harness, got %v", names)
+	}
+	if names["ignored"] {
+		t.Errorf("did not expect skills under vendor to be discovered: %v", names)
+	}
+}
+
 func TestDetectContext_MultiSkillSiblingDirs(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "skill-a", "SKILL.md"), skillMD("skill-a"))
