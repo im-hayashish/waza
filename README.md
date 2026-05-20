@@ -860,6 +860,8 @@ config:
   executor: mock          # or copilot-sdk
   model: claude-sonnet-4-20250514
   group_by: model          # Group results by model (or other dimension)
+  instruction_files:
+    - .github/instructions/project.instructions.md
 
 # Custom input variables available as {{.Vars.key}} in tasks and hooks
 inputs:
@@ -941,6 +943,18 @@ Variables are accessible in:
 - Hook commands
 - Task prompts and fixtures (via template rendering)
 - Grader configurations
+
+### Instruction Files
+
+Use `instruction_files` to apply `*.instructions.md` guidance during task execution:
+
+```yaml
+config:
+  instruction_files:
+    - .github/instructions/project.instructions.md
+```
+
+Instruction files are resolved from the active fixtures/context directory, copied into each task's temp workspace, and appended to the agent system message as path-labeled instructions. Task YAML files can also set top-level `instruction_files`; task-level entries are added to the eval-level list.
 
 ### CSV Dataset Support
 
@@ -1165,6 +1179,9 @@ your-skill/
     ├── tasks/            # Task definitions
     │   └── *.yaml
     └── fixtures/         # Context files
+        ├── .github/
+        │   └── instructions/
+        │       └── project.instructions.md
         └── *.txt
 ```
 

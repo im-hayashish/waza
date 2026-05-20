@@ -204,6 +204,42 @@ config:
 	}
 }
 
+func TestEvalSpec_InstructionFilesDeserialization(t *testing.T) {
+	tempDir := t.TempDir()
+	yamlContent := `name: instructions-test
+skill: test-skill
+config:
+  trials_per_task: 1
+  timeout_seconds: 60
+  executor: mock
+  model: test-model
+  instruction_files:
+    - .github/instructions/project.instructions.md
+    - docs/agent.instructions.md
+tasks:
+  - "tasks/*.yaml"
+`
+	specPath := filepath.Join(tempDir, "instructions.yaml")
+	if err := os.WriteFile(specPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write spec file: %v", err)
+	}
+
+	spec, err := LoadEvalSpec(specPath)
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	if len(spec.Config.InstructionFiles) != 2 {
+		t.Fatalf("Expected 2 instruction files, got %d", len(spec.Config.InstructionFiles))
+	}
+	if spec.Config.InstructionFiles[0] != ".github/instructions/project.instructions.md" {
+		t.Errorf("Unexpected first instruction file: %q", spec.Config.InstructionFiles[0])
+	}
+	if spec.Config.InstructionFiles[1] != "docs/agent.instructions.md" {
+		t.Errorf("Unexpected second instruction file: %q", spec.Config.InstructionFiles[1])
+	}
+}
+
 func TestEvalSpec_DefaultValues(t *testing.T) {
 	tempDir := t.TempDir()
 	// Minimal YAML - defaults need to be set by loader

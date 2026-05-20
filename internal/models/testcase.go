@@ -12,17 +12,18 @@ import (
 
 // TestCase represents a single evaluation test
 type TestCase struct {
-	Active      *bool             `yaml:"enabled,omitempty" json:"active,omitempty"`
-	ContextRoot string            `yaml:"context_dir,omitempty" json:"context_root,omitempty"`
-	DisplayName string            `yaml:"name" json:"display_name"`
-	Expectation TaskExpectation   `yaml:"expected,omitempty" json:"expectation,omitempty"`
-	SkillPaths  []string          `yaml:"skill_directories,omitempty" json:"skill_paths,omitempty"`
-	Stimulus    TaskStimulus      `yaml:"inputs" json:"stimulus"`
-	Summary     string            `yaml:"description,omitempty" json:"summary,omitempty"`
-	Tags        []string          `yaml:"tags,omitempty" json:"labels,omitempty"`
-	TestID      string            `yaml:"id" json:"test_id"`
-	TimeoutSec  *int              `yaml:"timeout_seconds,omitempty" json:"timeout_sec,omitempty"`
-	Validators  []ValidatorInline `yaml:"graders,omitempty" json:"validators,omitempty"`
+	Active           *bool             `yaml:"enabled,omitempty" json:"active,omitempty"`
+	ContextRoot      string            `yaml:"context_dir,omitempty" json:"context_root,omitempty"`
+	DisplayName      string            `yaml:"name" json:"display_name"`
+	Expectation      TaskExpectation   `yaml:"expected,omitempty" json:"expectation,omitempty"`
+	InstructionFiles []string          `yaml:"instruction_files,omitempty" json:"instruction_files,omitempty"`
+	SkillPaths       []string          `yaml:"skill_directories,omitempty" json:"skill_paths,omitempty"`
+	Stimulus         TaskStimulus      `yaml:"inputs" json:"stimulus"`
+	Summary          string            `yaml:"description,omitempty" json:"summary,omitempty"`
+	Tags             []string          `yaml:"tags,omitempty" json:"labels,omitempty"`
+	TestID           string            `yaml:"id" json:"test_id"`
+	TimeoutSec       *int              `yaml:"timeout_seconds,omitempty" json:"timeout_sec,omitempty"`
+	Validators       []ValidatorInline `yaml:"graders,omitempty" json:"validators,omitempty"`
 }
 
 // TaskStimulus defines the input for a task.

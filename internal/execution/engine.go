@@ -36,10 +36,11 @@ type WorkspaceKeeper interface {
 
 // ExecutionRequest represents a test execution request
 type ExecutionRequest struct {
-	ModelID   string
-	Message   string
-	Context   map[string]any
-	Resources []ResourceFile
+	ModelID      string
+	Message      string
+	Context      map[string]any
+	Resources    []ResourceFile
+	Instructions []InstructionFile
 
 	SessionID    string
 	WorkspaceDir string // Reuse an existing workspace directory (for follow-up prompts)
@@ -74,6 +75,12 @@ type ExecutionRequest struct {
 
 // ResourceFile represents a file resource
 type ResourceFile struct {
+	Path    string
+	Content []byte
+}
+
+// InstructionFile represents a file whose content should be applied as agent instructions.
+type InstructionFile struct {
 	Path    string
 	Content []byte
 }

@@ -164,6 +164,13 @@
           },
           "description": "Additional directories to search for skill definitions."
         },
+        "instruction_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Instruction files to apply to every task, resolved relative to the active context/fixtures directory."
+        },
         "disabled_skills": {
           "type": "array",
           "items": {

@@ -99,6 +99,8 @@ config:
   model: claude-sonnet-4.6 # Default model (override with --model)
   judge_model: gpt-4o # Model for LLM-as-judge graders (optional)
   executor: mock # mock (local) or copilot-sdk (real API)
+  instruction_files:
+    - .github/instructions/project.instructions.md
 ```
 
 | Field               | Type      | Default           | Description                                                 |
@@ -114,6 +116,7 @@ config:
 | `group_by`          | string    | —                 | Group results by a field (e.g., `tags`, `task_id`)          |
 | `fail_fast`         | bool      | false             | Stop the entire run on first task failure                   |
 | `skill_directories` | list[str] | `[]`              | Additional directories to search for skills                 |
+| `instruction_files` | list[str] | `[]`              | Instruction files to apply to every task                    |
 | `disabled_skills`   | list[str] | `[]`              | Skills to disable. Use `["*"]` to disable all skills        |
 | `required_skills`   | list[str] | `[]`              | Skills that must be available before running                |
 | `mcp_servers`       | object    | —                 | MCP server configurations for the evaluation                |
@@ -217,6 +220,7 @@ expected:
 | `inputs`      | object | Test inputs (prompt, files)                         |
 | `expected`    | object | Validation rules and expected behavior              |
 | `skill_directories` | string[] | Skill directories for this task (overrides eval-level) |
+| `instruction_files` | string[] | Instruction files for this task (adds to eval-level files) |
 
 ### Inputs Section
 
@@ -341,6 +345,29 @@ inputs:
   files:
     - path: sample.py
 ```
+
+### Instruction Files
+
+Use `instruction_files` for repository or task-specific `*.instructions.md` guidance:
+
+```yaml
+# eval.yaml
+config:
+  instruction_files:
+    - .github/instructions/project.instructions.md
+```
+
+```yaml
+# tasks/review.yaml
+instruction_files:
+  - .github/instructions/review.instructions.md
+inputs:
+  prompt: "Review this change"
+  files:
+    - path: sample.py
+```
+
+Instruction files are resolved from the active fixtures/context directory, copied into each fresh temp workspace, and appended to the agent system message with path labels. Eval-level files apply to every task; task-level files are added for that task. Paths must be relative and cannot use directory traversal.
 
 ### Directory Structure
 

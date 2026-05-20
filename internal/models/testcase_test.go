@@ -163,3 +163,33 @@ skill_directories:
 		t.Errorf("Expected second skill path '/absolute/skills', got %q", tc.SkillPaths[1])
 	}
 }
+
+func TestLoadTestCase_InstructionFiles(t *testing.T) {
+	yamlContent := `id: instructions-test
+name: Instruction files test
+inputs:
+  prompt: "test prompt"
+instruction_files:
+  - .github/instructions/task.instructions.md
+  - docs/task.instructions.md
+`
+	dir := t.TempDir()
+	p := filepath.Join(dir, "tc.yaml")
+	if err := os.WriteFile(p, []byte(yamlContent), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	tc, err := LoadTestCase(p)
+	if err != nil {
+		t.Fatalf("LoadTestCase: %v", err)
+	}
+	if len(tc.InstructionFiles) != 2 {
+		t.Fatalf("Expected 2 instruction files, got %d", len(tc.InstructionFiles))
+	}
+	if tc.InstructionFiles[0] != ".github/instructions/task.instructions.md" {
+		t.Errorf("Expected first instruction file '.github/instructions/task.instructions.md', got %q", tc.InstructionFiles[0])
+	}
+	if tc.InstructionFiles[1] != "docs/task.instructions.md" {
+		t.Errorf("Expected second instruction file 'docs/task.instructions.md', got %q", tc.InstructionFiles[1])
+	}
+}

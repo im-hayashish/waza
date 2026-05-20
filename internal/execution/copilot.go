@@ -165,13 +165,20 @@ func (e *CopilotEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Ex
 	// Build skill directories list and system message, unless skills are disabled
 	var skillDirs []string
 	var systemMessage *copilot.SystemMessageConfig
+	var systemMessageParts []string
 	if !req.NoSkills {
 		skillDirs = e.getSkillDirs(sourceDir, req)
 		if msg := buildSkillSystemMessage(skillDirs, req.SkillName); msg != "" {
-			systemMessage = &copilot.SystemMessageConfig{
-				Mode:    "append",
-				Content: msg,
-			}
+			systemMessageParts = append(systemMessageParts, msg)
+		}
+	}
+	if msg := buildInstructionSystemMessage(req.Instructions); msg != "" {
+		systemMessageParts = append(systemMessageParts, msg)
+	}
+	if len(systemMessageParts) > 0 {
+		systemMessage = &copilot.SystemMessageConfig{
+			Mode:    "append",
+			Content: strings.Join(systemMessageParts, "\n"),
 		}
 	}
 
@@ -571,6 +578,33 @@ func buildSkillSystemMessage(skillDirs []string, skillName string) string {
 		sb.WriteString("</skill>\n")
 	}
 	sb.WriteString("</available_skills>\n")
+
+	return sb.String()
+}
+
+func buildInstructionSystemMessage(instructions []InstructionFile) string {
+	if len(instructions) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n<instruction_files>\n")
+	sb.WriteString("The following instruction files apply to this evaluation task. Follow them as additional repository instructions.\n")
+	for _, instruction := range instructions {
+		if instruction.Path == "" {
+			continue
+		}
+		sb.WriteString("\n<instruction_file>\n")
+		fmt.Fprintf(&sb, "<path>%s</path>\n", instruction.Path)
+		sb.WriteString("<content>\n")
+		sb.Write(instruction.Content)
+		if len(instruction.Content) == 0 || instruction.Content[len(instruction.Content)-1] != '\n' {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("</content>\n")
+		sb.WriteString("</instruction_file>\n")
+	}
+	sb.WriteString("</instruction_files>\n")
 
 	return sb.String()
 }

@@ -1019,7 +1019,15 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 	startTime := time.Now()
 
 	// Prepare execution request
-	req := r.buildExecutionRequest(tc)
+	req, err := r.buildExecutionRequest(tc)
+	if err != nil {
+		return models.RunResult{
+			RunNumber:  runNum,
+			Status:     models.StatusError,
+			DurationMs: time.Since(startTime).Milliseconds(),
+			ErrorMsg:   err.Error(),
+		}
+	}
 
 	// Emit agent prompt event before execution
 	if r.verbose {
@@ -1139,9 +1147,14 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 	}
 }
 
-func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) *execution.ExecutionRequest {
+func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.ExecutionRequest, error) {
 	// Load resource files
 	resources := r.loadResources(tc)
+	instructions, instructionResources, err := r.loadInstructionFiles(tc)
+	if err != nil {
+		return nil, err
+	}
+	resources = append(resources, instructionResources...)
 
 	spec := r.cfg.Spec()
 	timeout := spec.Config.TimeoutSec
@@ -1161,6 +1174,7 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) *execution.Execu
 		Message:         tc.Stimulus.Message,
 		Context:         tc.Stimulus.Metadata,
 		Resources:       resources,
+		Instructions:    instructions,
 		SkillName:       spec.SkillName,
 		TaskName:        tc.DisplayName,
 		TaskDescription: tc.Summary,
@@ -1168,14 +1182,18 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) *execution.Execu
 		NoSkills:        noSkills,
 		Timeout:         time.Duration(timeout) * time.Second,
 		MCPServers:      convertMCPServers(spec.Config.ServerConfigs),
-	}
+	}, nil
 }
 
 // executeFollowUps sends follow-up prompts using the same workspace and session,
 // aggregating results into the original response.
 func (r *EvalRunner) executeFollowUps(ctx context.Context, tc *models.TestCase, resp *execution.ExecutionResponse) {
 	for i, prompt := range tc.Stimulus.FollowUps {
-		followReq := r.buildExecutionRequest(tc)
+		followReq, err := r.buildExecutionRequest(tc)
+		if err != nil {
+			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d setup failed: %v", i+1, len(tc.Stimulus.FollowUps), err)
+			break
+		}
 		followReq.Message = prompt
 		followReq.SessionID = resp.SessionID
 		followReq.WorkspaceDir = resp.WorkspaceDir
@@ -1279,6 +1297,92 @@ func (r *EvalRunner) loadResources(tc *models.TestCase) []execution.ResourceFile
 	}
 
 	return resources
+}
+
+func (r *EvalRunner) loadInstructionFiles(tc *models.TestCase) ([]execution.InstructionFile, []execution.ResourceFile, error) {
+	spec := r.cfg.Spec()
+	paths := append([]string{}, spec.Config.InstructionFiles...)
+	paths = append(paths, tc.InstructionFiles...)
+	if len(paths) == 0 {
+		return nil, nil, nil
+	}
+
+	fixtureDir := r.cfg.FixtureDir()
+	if tc.ContextRoot != "" {
+		fixtureDir = tc.ContextRoot
+	}
+	if fixtureDir == "" {
+		return nil, nil, fmt.Errorf("instruction_files require a context/fixtures directory")
+	}
+
+	instructions := make([]execution.InstructionFile, 0, len(paths))
+	resources := make([]execution.ResourceFile, 0, len(paths))
+	for _, path := range paths {
+		cleanPath, fullPath, err := resolveContextFile(fixtureDir, path, "instruction_files")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("reading instruction file %q: %w", path, err)
+		}
+
+		instructions = append(instructions, execution.InstructionFile{
+			Path:    filepath.ToSlash(cleanPath),
+			Content: content,
+		})
+		resources = append(resources, execution.ResourceFile{
+			Path:    filepath.ToSlash(cleanPath),
+			Content: content,
+		})
+	}
+
+	return instructions, resources, nil
+}
+
+func resolveContextFile(baseDir, relPath, field string) (string, string, error) {
+	if relPath == "" {
+		return "", "", fmt.Errorf("%s path must not be empty", field)
+	}
+	if filepath.IsAbs(relPath) {
+		return "", "", fmt.Errorf("%s path %q must be relative", field, relPath)
+	}
+	if containsPathTraversal(relPath) {
+		return "", "", fmt.Errorf("%s path %q must not contain path traversal", field, relPath)
+	}
+
+	cleanPath := filepath.Clean(relPath)
+	if cleanPath == "." {
+		return "", "", fmt.Errorf("%s path must not be empty", field)
+	}
+
+	fullPath := filepath.Join(baseDir, cleanPath)
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving context directory: %w", err)
+	}
+	absFullPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("resolving %s path %q: %w", field, relPath, err)
+	}
+
+	if absFullPath != absBaseDir && !strings.HasPrefix(absFullPath, absBaseDir+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("%s path %q escapes context directory", field, relPath)
+	}
+
+	return cleanPath, fullPath, nil
+}
+
+func containsPathTraversal(path string) bool {
+	for _, part := range strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if part == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // convertMCPServers converts the eval YAML mcp_servers config (map[string]any)

@@ -90,7 +90,8 @@ func TestBuildExecutionRequest_SkillPaths(t *testing.T) {
 			runner := NewEvalRunner(cfg, nil)
 
 			// Build execution request
-			req := runner.buildExecutionRequest(tc)
+			req, err := runner.buildExecutionRequest(tc)
+			require.NoError(t, err)
 
 			// Verify skill paths
 			require.NotNil(t, req, "execution request should not be nil")
@@ -137,7 +138,8 @@ func TestBuildExecutionRequest_BasicFields(t *testing.T) {
 	}
 
 	runner := NewEvalRunner(cfg, nil)
-	req := runner.buildExecutionRequest(tc)
+	req, err := runner.buildExecutionRequest(tc)
+	require.NoError(t, err)
 
 	// Verify basic fields
 	assert.Equal(t, "Hello world", req.Message)
@@ -174,7 +176,8 @@ func TestBuildExecutionRequest_TimeoutOverride(t *testing.T) {
 	}
 
 	runner := NewEvalRunner(cfg, nil)
-	req := runner.buildExecutionRequest(tc)
+	req, err := runner.buildExecutionRequest(tc)
+	require.NoError(t, err)
 
 	// Verify timeout is overridden
 	assert.Equal(t, float64(300), req.Timeout.Seconds(), "test case timeout should override spec timeout")
@@ -206,7 +209,8 @@ func TestBuildExecutionRequest_TaskLevelSkillPaths(t *testing.T) {
 		Stimulus:    models.TaskStimulus{Message: "test"},
 		SkillPaths:  []string{"./task-skills", "./more-skills"},
 	}
-	req := runner.buildExecutionRequest(tc)
+	req, err := runner.buildExecutionRequest(tc)
+	require.NoError(t, err)
 	require.NotNil(t, req)
 	assert.Equal(t, 2, len(req.SkillPaths), "task-level skill paths should override eval-level")
 	assert.Equal(t, filepath.Join(specDir, "task-skills"), req.SkillPaths[0])
@@ -218,10 +222,119 @@ func TestBuildExecutionRequest_TaskLevelSkillPaths(t *testing.T) {
 		DisplayName: "Test Case 2",
 		Stimulus:    models.TaskStimulus{Message: "test"},
 	}
-	req2 := runner.buildExecutionRequest(tc2)
+	req2, err := runner.buildExecutionRequest(tc2)
+	require.NoError(t, err)
 	require.NotNil(t, req2)
 	assert.Equal(t, 1, len(req2.SkillPaths), "should fall back to eval-level skill paths")
 	assert.Equal(t, filepath.Join(specDir, "eval-skills"), req2.SkillPaths[0])
+}
+
+func TestBuildExecutionRequest_InstructionFilesAreAdditive(t *testing.T) {
+	fixtureDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(fixtureDir, ".github", "instructions"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(fixtureDir, "docs"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(fixtureDir, ".github", "instructions", "project.instructions.md"), []byte("Use project rules."), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(fixtureDir, "docs", "task.instructions.md"), []byte("Use task rules."), 0o644))
+
+	spec := &models.EvalSpec{
+		SkillName: "test-skill",
+		Config: models.Config{
+			EngineType:       "mock",
+			ModelID:          "gpt-4",
+			TimeoutSec:       60,
+			InstructionFiles: []string{".github/instructions/project.instructions.md"},
+		},
+	}
+	cfg := config.NewEvalConfig(spec, config.WithFixtureDir(fixtureDir))
+	runner := NewEvalRunner(cfg, nil)
+
+	tc := &models.TestCase{
+		TestID:           "test-001",
+		DisplayName:      "Test Case",
+		Stimulus:         models.TaskStimulus{Message: "test"},
+		InstructionFiles: []string{"docs/task.instructions.md"},
+	}
+
+	req, err := runner.buildExecutionRequest(tc)
+	require.NoError(t, err)
+	require.Len(t, req.Instructions, 2)
+	assert.Equal(t, ".github/instructions/project.instructions.md", req.Instructions[0].Path)
+	assert.Equal(t, "Use project rules.", string(req.Instructions[0].Content))
+	assert.Equal(t, "docs/task.instructions.md", req.Instructions[1].Path)
+	assert.Equal(t, "Use task rules.", string(req.Instructions[1].Content))
+
+	require.Len(t, req.Resources, 2)
+	assert.Equal(t, ".github/instructions/project.instructions.md", req.Resources[0].Path)
+	assert.Equal(t, "docs/task.instructions.md", req.Resources[1].Path)
+}
+
+func TestBuildExecutionRequest_InstructionFilesUseTaskContextRoot(t *testing.T) {
+	evalFixtureDir := t.TempDir()
+	taskFixtureDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(taskFixtureDir, ".github", "instructions"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(taskFixtureDir, ".github", "instructions", "task.instructions.md"), []byte("Task context rules."), 0o644))
+
+	spec := &models.EvalSpec{
+		SkillName: "test-skill",
+		Config: models.Config{
+			EngineType:       "mock",
+			ModelID:          "gpt-4",
+			TimeoutSec:       60,
+			InstructionFiles: []string{".github/instructions/task.instructions.md"},
+		},
+	}
+	cfg := config.NewEvalConfig(spec, config.WithFixtureDir(evalFixtureDir))
+	runner := NewEvalRunner(cfg, nil)
+
+	tc := &models.TestCase{
+		TestID:      "test-001",
+		DisplayName: "Test Case",
+		ContextRoot: taskFixtureDir,
+		Stimulus:    models.TaskStimulus{Message: "test"},
+	}
+
+	req, err := runner.buildExecutionRequest(tc)
+	require.NoError(t, err)
+	require.Len(t, req.Instructions, 1)
+	assert.Equal(t, "Task context rules.", string(req.Instructions[0].Content))
+}
+
+func TestBuildExecutionRequest_InstructionFileErrors(t *testing.T) {
+	fixtureDir := t.TempDir()
+	spec := &models.EvalSpec{
+		SkillName: "test-skill",
+		Config: models.Config{
+			EngineType: "mock",
+			ModelID:    "gpt-4",
+			TimeoutSec: 60,
+		},
+	}
+	cfg := config.NewEvalConfig(spec, config.WithFixtureDir(fixtureDir))
+	runner := NewEvalRunner(cfg, nil)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "missing", path: "missing.instructions.md", want: "reading instruction file"},
+		{name: "absolute", path: filepath.Join(fixtureDir, "absolute.instructions.md"), want: "must be relative"},
+		{name: "traversal", path: "../escape.instructions.md", want: "must not contain path traversal"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := &models.TestCase{
+				TestID:           "test-001",
+				DisplayName:      "Test Case",
+				Stimulus:         models.TaskStimulus{Message: "test"},
+				InstructionFiles: []string{tt.path},
+			}
+			_, err := runner.buildExecutionRequest(tc)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
 }
 
 func TestComputeTestStats_ErrorRunsAreSeparateFromFailed(t *testing.T) {

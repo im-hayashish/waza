@@ -90,6 +90,30 @@ func TestBuildSkillSystemMessage_SkipsHiddenAndVendor(t *testing.T) {
 	assert.Empty(t, msg)
 }
 
+func TestBuildInstructionSystemMessage(t *testing.T) {
+	msg := buildInstructionSystemMessage([]InstructionFile{
+		{
+			Path:    ".github/instructions/project.instructions.md",
+			Content: []byte("Always use table-driven tests."),
+		},
+		{
+			Path:    "docs/task.instructions.md",
+			Content: []byte("Mention edge cases.\n"),
+		},
+	})
+
+	assert.Contains(t, msg, "<instruction_files>")
+	assert.Contains(t, msg, "<path>.github/instructions/project.instructions.md</path>")
+	assert.Contains(t, msg, "Always use table-driven tests.")
+	assert.Contains(t, msg, "<path>docs/task.instructions.md</path>")
+	assert.Contains(t, msg, "Mention edge cases.")
+	assert.Contains(t, msg, "</instruction_files>")
+}
+
+func TestBuildInstructionSystemMessage_NoInstructions(t *testing.T) {
+	assert.Empty(t, buildInstructionSystemMessage(nil))
+}
+
 func TestParseSkillFrontmatter(t *testing.T) {
 	tests := []struct {
 		name         string

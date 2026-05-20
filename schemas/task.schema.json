@@ -71,6 +71,13 @@
       "items": {
         "type": "string"
       }
+    },
+    "instruction_files": {
+      "type": "array",
+      "description": "Instruction files to apply to this task in addition to eval-level instruction_files. Paths are resolved relative to the active context/fixtures directory.",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "$defs": {

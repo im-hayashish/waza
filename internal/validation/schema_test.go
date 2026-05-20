@@ -56,6 +56,28 @@ func TestValidateEvalBytes_Valid(t *testing.T) {
 	require.Empty(t, errs, "valid eval should have no errors")
 }
 
+func TestValidateEvalBytes_InstructionFiles(t *testing.T) {
+	yaml := `name: test-eval
+skill: test-skill
+version: "1.0"
+config:
+  trials_per_task: 1
+  timeout_seconds: 60
+  executor: mock
+  model: gpt-4o
+  instruction_files:
+    - .github/instructions/project.instructions.md
+metrics:
+  - name: accuracy
+    weight: 1.0
+    threshold: 0.8
+tasks:
+  - "tasks/*.yaml"
+`
+	errs := ValidateEvalBytes([]byte(yaml))
+	require.Empty(t, errs, "eval with instruction_files should have no errors")
+}
+
 func TestValidateEvalBytes_Invalid(t *testing.T) {
 	errs := ValidateEvalBytes([]byte(invalidEvalYAML))
 	require.NotEmpty(t, errs, "invalid eval should have errors")
@@ -68,6 +90,18 @@ func TestValidateEvalBytes_Invalid(t *testing.T) {
 func TestValidateTaskBytes_Valid(t *testing.T) {
 	errs := ValidateTaskBytes([]byte(validTaskYAML))
 	require.Empty(t, errs, "valid task should have no errors")
+}
+
+func TestValidateTaskBytes_InstructionFiles(t *testing.T) {
+	yaml := `id: task-1
+name: Basic task
+instruction_files:
+  - .github/instructions/task.instructions.md
+inputs:
+  prompt: "Explain this code"
+`
+	errs := ValidateTaskBytes([]byte(yaml))
+	require.Empty(t, errs, "task with instruction_files should have no errors")
 }
 
 func TestValidateTaskBytes_Invalid(t *testing.T) {

@@ -218,6 +218,19 @@ config:
     - /opt/shared-skills
 ```
 
+### instruction_files
+
+**Type:** list[string]
+**Default:** `[]`
+
+Instruction files to apply to every task. Paths are resolved relative to the active fixtures/context directory, copied into each task workspace, and appended to the agent system message as path-labeled instructions.
+
+```yaml
+config:
+  instruction_files:
+    - .github/instructions/project.instructions.md
+```
+
 ### required_skills
 
 **Type:** list[string]  
@@ -408,6 +421,15 @@ skill_directories:
 ```
 
 When specified on a task, this **replaces** (not merges with) the eval-level `skill_directories`.
+
+### instruction_files (optional)
+
+Apply additional instruction files for a specific task. Paths are resolved relative to the active fixtures/context directory. Task-level entries are **added to** the eval-level `config.instruction_files` list.
+
+```yaml
+instruction_files:
+  - .github/instructions/review.instructions.md
+```
 
 ## inputs Section
 
