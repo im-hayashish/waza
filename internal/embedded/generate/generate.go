@@ -1,6 +1,7 @@
 // Generates all the proper copilot CLI SDK bundles, so we can use them in waza.
 // The .zst, .license and generated .go files should all be checked in. When waza is built
 // only the relevant copilot CLI package will be added.
+// Set COPILOT_CLI_VERSION to pin the CLI version instead of auto-detecting from go.mod.
 
 package main
 
@@ -21,6 +22,7 @@ func main() {
 	g := errgroup.Group{}
 
 	platforms := os.Args[1:]
+	cliVersion := os.Getenv("COPILOT_CLI_VERSION")
 
 	fmt.Printf("Generating the following platforms:\n")
 
@@ -34,7 +36,12 @@ func main() {
 
 	for _, arg := range platforms {
 		g.Go(func() error {
-			cmd := exec.Command("go", "tool", "bundler", "-platform", arg, "-output", outputDir)
+			args := []string{"tool", "bundler", "-platform", arg, "-output", outputDir}
+			if cliVersion != "" {
+				args = append(args, "-cli-version", cliVersion)
+			}
+
+			cmd := exec.Command("go", args...)
 
 			fmt.Printf("Running %s\n", cmd.String())
 

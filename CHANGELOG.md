@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bundled copilot-cli** — Bumped the embedded copilot-cli from 1.0.2 to 1.0.49 so sub-agent permission requests inherit the session handler and no longer hang eval runs (#244)
+
 ## [0.32.0] - 2026-05-20
 
 ### Added

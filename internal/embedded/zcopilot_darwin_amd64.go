@@ -12,18 +12,18 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-//go:embed zcopilot_1.0.2_darwin_amd64.zst
+//go:embed zcopilot_1.0.49_darwin_amd64.zst
 var localEmbeddedCopilotCLI []byte
 
-//go:embed zcopilot_1.0.2_darwin_amd64.license
+//go:embed zcopilot_1.0.49_darwin_amd64.license
 var localEmbeddedCopilotCLILicense []byte
 
 func init() {
 	embeddedcli.Setup(embeddedcli.Config{
 		Cli:     cliReader(),
 		License: localEmbeddedCopilotCLILicense,
-		Version: "1.0.2",
-		CliHash: mustDecodeBase64("sF8drq6+D1apJuWgxXTe70WxLkKzs81mW8qfRS9ruEQ="),
+		Version: "1.0.49",
+		CliHash: mustDecodeBase64("0/4HWxLitMV271ilqfKmXwbSEZx6oYYUW7cPDgrS86E="),
 	})
 }
 
