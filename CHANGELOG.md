@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-05-20
+
+### Added
+
+- **Instruction files in eval runs** — Eval-level `config.instruction_files` and task-level `instruction_files` now copy files from the active context into task workspaces and append path-labeled contents to the Copilot system message (#248, closes #239)
+
+### Fixed
+
+- **Prompt grader follow-up recovery** — Prompt grading now preserves collected grades when a follow-up turn fails after successful grader collection (#251)
+- **`waza check` eval discovery** — Nested skills and separated evals are discovered consistently in multi-skill workspaces (#247, closes #238)
+- **Skill body routing markers** — Compliance scoring now detects trigger, anti-trigger, and routing markers in `SKILL.md` body sections as well as frontmatter descriptions (#236, closes #223)
+
+### Changed
+
+- **Dashboard validation coverage** — Added coverage for dashboard lint and end-to-end validation (#249)
+- **Install documentation** — Replaced unsupported `go install` guidance and clarified Windows/WSL install behavior (#246, closes #242; #245, closes #241)
+- **Dependencies** — Bump devalue in /site, postcss in /web, and astro in /site (#237, #235, #234)
+
 ## [0.31.0] - 2026-04-28
 
 ### Added
@@ -427,7 +445,8 @@ pip install waza
 - YAML escaping for regex patterns with backslashes
 - Progress bar now shows 100% on completion
 
-[Unreleased]: https://github.com/microsoft/waza/compare/v0.31.0...HEAD
+[Unreleased]: https://github.com/microsoft/waza/compare/azd-ext-microsoft-azd-waza_0.32.0...HEAD
+[0.32.0]: https://github.com/microsoft/waza/compare/azd-ext-microsoft-azd-waza_0.31.0...azd-ext-microsoft-azd-waza_0.32.0
 [0.31.0]: https://github.com/microsoft/waza/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/microsoft/waza/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/microsoft/waza/compare/v0.29.0...v0.30.0
