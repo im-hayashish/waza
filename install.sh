@@ -33,6 +33,12 @@ detect_arch() {
   esac
 }
 
+# Detect whether Linux is actually WSL. In that case the Linux binary is the
+# right install target for this shell, but users often expected native Windows.
+is_wsl() {
+  [ -r /proc/sys/kernel/osrelease ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease
+}
+
 # Determine install directory
 install_dir() {
   if [ -w /usr/local/bin ]; then
@@ -51,6 +57,10 @@ main() {
   arch="$(detect_arch)"
 
   echo "Detected platform: ${os}/${arch}"
+  if [ "$os" = "linux" ] && is_wsl; then
+    echo "Note: Detected WSL; installing the Linux binary inside WSL."
+    echo "For native Windows, download waza-windows-${arch}.exe from https://github.com/${REPO}/releases/latest."
+  fi
 
   # Get latest binary release tag (filter for v* tags; skip azd extension releases)
   tag="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" \

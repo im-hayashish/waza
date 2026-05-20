@@ -8,13 +8,13 @@ A Go CLI for evaluating AI agent skills — scaffold eval suites, run benchmarks
 
 ### Binary Install (recommended)
 
-Download and install the latest pre-built binary with the install script:
+Download and install the latest pre-built binary with the Bash install script on macOS, Linux, or Windows Bash environments such as Git Bash, MSYS2, or Cygwin:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 ```
 
-The script auto-detects your OS and architecture (linux/darwin/windows, amd64/arm64), downloads the binary, verifies the checksum, and installs to `/usr/local/bin` (or `~/bin` if not writable).
+The script auto-detects the OS and architecture of the environment where Bash is running (linux/darwin/windows, amd64/arm64), downloads the binary, verifies the checksum, and installs to `/usr/local/bin` (or `~/bin` if not writable). On Windows, piping this command to `bash` from PowerShell may invoke WSL and install the Linux binary inside WSL. For native Windows, download `waza-windows-amd64.exe` or `waza-windows-arm64.exe` directly from the [latest release](https://github.com/microsoft/waza/releases/latest), rename it to `waza.exe`, and place it in a directory on your `PATH`.
 
 Or download binaries directly from the [latest release](https://github.com/microsoft/waza/releases/latest).
 

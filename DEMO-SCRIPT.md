@@ -16,7 +16,7 @@
 cd ~/demo && rm -rf waza-demo
 mkdir waza-demo && cd waza-demo
 
-# Install waza
+# Install waza (macOS/Linux or Windows Git Bash/MSYS/Cygwin)
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 ```
 

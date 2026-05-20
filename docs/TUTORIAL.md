@@ -8,8 +8,10 @@ This tutorial walks you through creating evaluations for your Agent Skills.
 
 - `waza` CLI installed:
   ```bash
+  # macOS/Linux or Windows Git Bash/MSYS/Cygwin
   curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
   ```
+  For native Windows, download the Windows binary from the [latest release](https://github.com/microsoft/waza/releases/latest).
 - An existing skill to evaluate
 
 ## Step 1: Initialize Your Eval Suite
@@ -389,6 +391,7 @@ Add to your GitHub Actions workflow:
 ```yaml
 - name: Run Skill Evals
   run: |
+    # Linux runner
     curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
     waza run ./my-skill/eval.yaml \
       --output results.json \

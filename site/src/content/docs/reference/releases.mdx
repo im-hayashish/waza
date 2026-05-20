@@ -53,12 +53,12 @@ Pre-built binaries for all major platforms:
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 ```
 
+On Windows, use this command only from Git Bash, MSYS2, or Cygwin. If PowerShell pipes to WSL's `bash.exe`, the script installs the Linux binary inside WSL.
+
 </TabItem>
 <TabItem label="Windows (PowerShell)">
 
-```powershell
-iwr -useb https://raw.githubusercontent.com/microsoft/waza/main/install.ps1 | iex
-```
+Download `waza-windows-amd64.exe` or `waza-windows-arm64.exe` from the [latest release](https://github.com/microsoft/waza/releases/latest), rename it to `waza.exe`, and place it in a directory on your `PATH`.
 
 </TabItem>
 </Tabs>

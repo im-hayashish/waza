@@ -21,9 +21,18 @@ Waza evaluates both `SKILL.md`-based skills and `.agent.md` custom agents. This 
 Choose one method:
 
 <Tabs>
-<TabItem label="Binary (Recommended)">
+<TabItem label="macOS / Linux / Bash">
 ```bash
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
+waza --version
+```
+The Bash installer detects the environment where Bash is running. From PowerShell, `bash` may resolve to WSL and install the Linux binary inside WSL.
+</TabItem>
+
+<TabItem label="Windows">
+Download `waza-windows-amd64.exe` or `waza-windows-arm64.exe` from the [latest release](https://github.com/microsoft/waza/releases/latest), rename it to `waza.exe`, and place it in a directory on your `PATH`.
+
+```powershell
 waza --version
 ```
 </TabItem>

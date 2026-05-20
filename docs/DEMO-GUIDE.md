@@ -11,7 +11,7 @@ This guide provides step-by-step instructions for 9 practical demonstrations cov
 Before any demo, ensure waza is installed:
 
 ```bash
-# Option A: Binary install (recommended)
+# Option A: Binary install (macOS/Linux or Windows Git Bash/MSYS/Cygwin)
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 
 # Option B: Build from source
@@ -841,4 +841,3 @@ See [docs/GRADERS.md](./GRADERS.md) for implementing custom script graders.
 - **[GRADERS.md](./GRADERS.md)** — Complete grader reference
 - **[DEMO-SCRIPT.md](../DEMO-SCRIPT.md)** — Presentation script for live demos
 - **[examples/README.md](../examples/README.md)** — Example descriptions
-
