@@ -11,7 +11,7 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-This triggers the full pipeline: CLI build → extension build → GitHub Release → extension publish → version sync.
+This triggers the full pipeline: CLI build → extension build → GitHub Release → extension publish → version sync → GitHub Pages deploy.
 
 ## What the Workflow Does
 
@@ -19,6 +19,7 @@ This triggers the full pipeline: CLI build → extension build → GitHub Releas
 2. **build-cli** — Matrix build for 6 platforms (linux, darwin, windows × amd64, arm64). Builds the web UI then produces `waza-{os}-{arch}` binaries.
 3. **release-cli** — Downloads CLI artifacts, generates SHA256 checksums, and creates the **CLI GitHub Release** (`Waza vX.Y.Z`) with standalone binaries attached.
 4. **release-extension** — Syncs `version.txt` and `extension.yaml`, builds the web UI, builds and packs the azd extension, creates the **Extension GitHub Release** (`Waza azd Extension vX.Y.Z`), publishes to the azd registry, then opens a PR with updated `registry.json` and synced version files.
+5. **pages.yml** — Deploys the documentation site after the `Release` workflow completes successfully, ensuring release notes and download links published to `site/` are pushed to GitHub Pages.
 
 ## Version File Locations
 
