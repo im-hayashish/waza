@@ -4,36 +4,21 @@ This document describes how the Waza release process works. All releases are han
 
 ## Cutting a Release
 
-### Tag Push (recommended)
+Create and push a semver tag:
 
 ```bash
-git tag v1.2.3
-git push origin v1.2.3
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 This triggers the full pipeline: CLI build → extension build → GitHub Release → extension publish → version sync.
 
-### Manual Dispatch
-
-Go to **Actions → Release → Run workflow** and fill in:
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Semver without `v` prefix (e.g. `1.2.3`) | *required* |
-| `build_cli` | Build standalone CLI binaries | `true` |
-| `build_extension` | Build azd extension binaries | `true` |
-| `publish_extension` | Publish extension to azd registry | `false` |
-
-Manual dispatch creates the git tag automatically if it doesn't exist.
-
 ## What the Workflow Does
 
-1. **setup-version** — Extracts version from the tag (strips `v`) or manual input. Validates semver format.
+1. **setup-version** — Extracts the version from the pushed tag (strips `v`) and validates semver format.
 2. **build-cli** — Matrix build for 6 platforms (linux, darwin, windows × amd64, arm64). Builds the web UI then produces `waza-{os}-{arch}` binaries.
-3. **build-extension** — Builds the web UI, then the azd extension via `azd x build` and `azd x pack`. Produces platform-specific archives.
-4. **create-cli-release** — Downloads CLI artifacts, generates SHA256 checksums, creates a **CLI GitHub Release** (`Waza vX.Y.Z`) with standalone binaries attached.
-5. **publish-extension** — Runs `azd x release` to create a separate **Extension GitHub Release** (`Waza azd Extension vX.Y.Z`), then runs `azd x publish` to update the registry. Creates a PR with the updated `registry.json` and auto-merges it.
-6. **sync-versions** — Updates `version.txt` and `extension.yaml` to match the released version, commits to `main` if changed.
+3. **release-cli** — Downloads CLI artifacts, generates SHA256 checksums, and creates the **CLI GitHub Release** (`Waza vX.Y.Z`) with standalone binaries attached.
+4. **release-extension** — Syncs `version.txt` and `extension.yaml`, builds the web UI, builds and packs the azd extension, creates the **Extension GitHub Release** (`Waza azd Extension vX.Y.Z`), publishes to the azd registry, then opens a PR with updated `registry.json` and synced version files.
 
 ## Version File Locations
 

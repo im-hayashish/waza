@@ -7,24 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.33.0] - 2026-05-21
 
-- **Bundled copilot-cli** — Bumped the embedded copilot-cli from 1.0.2 to 1.0.49 so sub-agent permission requests inherit the session handler and no longer hang eval runs (#244)
-
-## [0.32.0] - 2026-05-20
+Note: This release includes the changes previously prepared under 0.32.0, which was not published.
 
 ### Added
 
+- **Configurable eval file naming** — `.waza.yaml` can now configure `files.evalFile`, `files.taskGlob`, and `files.taskFileSuffix`, with the new naming carried through scaffolding, workspace discovery, discovery mode, schemas, and docs while preserving the existing `eval.yaml` and `tasks/*.yaml` defaults (#254, closes #232)
 - **Instruction files in eval runs** — Eval-level `config.instruction_files` and task-level `instruction_files` now copy files from the active context into task workspaces and append path-labeled contents to the Copilot system message (#248, closes #239)
 
 ### Fixed
 
+- **Prompt graders use the execution engine** — Prompt graders now route judge turns through `CopilotEngine` instead of constructing a Copilot client directly, keeping grader execution aligned with engine configuration and preserving follow-up recovery behavior (#258, closes #54)
 - **Prompt grader follow-up recovery** — Prompt grading now preserves collected grades when a follow-up turn fails after successful grader collection (#251)
+- **Bundled Copilot CLI updated** — Embedded `copilot-cli` bundles are updated from 1.0.2 to 1.0.49 across supported platforms, with reproducible pinned bundle generation via `COPILOT_CLI_VERSION` (#260, closes #244)
+- **Spec-aligned skill scaffolding** — `waza new skill` no longer asks for a nonstandard skill type or emits `type:` frontmatter, and the wizard now rejects early exits that omit required name or description fields (#261, closes #243)
 - **`waza check` eval discovery** — Nested skills and separated evals are discovered consistently in multi-skill workspaces (#247, closes #238)
 - **Skill body routing markers** — Compliance scoring now detects trigger, anti-trigger, and routing markers in `SKILL.md` body sections as well as frontmatter descriptions (#236, closes #223)
 
 ### Changed
 
+- **Copilot SDK v0.3.0 migration** — Updated `github.com/github/copilot-sdk/go` to v0.3.0, migrated session event handling to typed payloads, and refreshed transcript, logging, web API, usage collection, suggestion trace, and test coverage for the new API (#255, closes #253)
 - **Dashboard validation coverage** — Added coverage for dashboard lint and end-to-end validation (#249)
 - **Install documentation** — Replaced unsupported `go install` guidance and clarified Windows/WSL install behavior (#246, closes #242; #245, closes #241)
 - **Dependencies** — Bump devalue in /site, postcss in /web, and astro in /site (#237, #235, #234)
@@ -449,8 +452,8 @@ pip install waza
 - YAML escaping for regex patterns with backslashes
 - Progress bar now shows 100% on completion
 
-[Unreleased]: https://github.com/microsoft/waza/compare/azd-ext-microsoft-azd-waza_0.32.0...HEAD
-[0.32.0]: https://github.com/microsoft/waza/compare/azd-ext-microsoft-azd-waza_0.31.0...azd-ext-microsoft-azd-waza_0.32.0
+[Unreleased]: https://github.com/microsoft/waza/compare/v0.33.0...HEAD
+[0.33.0]: https://github.com/microsoft/waza/compare/v0.31.0...v0.33.0
 [0.31.0]: https://github.com/microsoft/waza/compare/v0.30.1...v0.31.0
 [0.30.1]: https://github.com/microsoft/waza/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/microsoft/waza/compare/v0.29.0...v0.30.0
