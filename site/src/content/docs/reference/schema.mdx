@@ -21,7 +21,7 @@ config:
   trials_per_task: 1 # Runs per task
   timeout_seconds: 300 # Task timeout
   parallel: false # Concurrent execution
-  workers: 4 # Parallel workers
+  workers: 0 # Auto-size parallel workers
   model: claude-sonnet-4.6 # Default model
   executor: mock # mock or copilot-sdk
 
@@ -130,9 +130,9 @@ config:
 ### workers
 
 **Type:** integer  
-**Default:** 4
+**Default:** 0
 
-Number of concurrent workers when `parallel: true`.
+Number of concurrent workers when `parallel: true`. Use `0` or omit the field to auto-size workers.
 
 ```yaml
 config:
@@ -653,7 +653,7 @@ files:
 defaults:
   model: claude-sonnet-4.6
   timeout: 300
-  workers: 4
+  workers: 0
 
 # Cache settings
 cache:
@@ -779,7 +779,7 @@ config:
   trials_per_task: 1
   timeout_seconds: 300
   parallel: false
-  workers: 4
+  workers: 0
   model: claude-sonnet-4.6
   executor: copilot-sdk
 

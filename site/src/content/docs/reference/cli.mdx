@@ -64,7 +64,7 @@ waza run [eval.yaml | skill-name | agent-name]
 | `--output-dir` | `-d` | string | | Directory for structured output; each run creates a UTC-timestamped subdirectory of the specified directory. Mutually exclusive with `--output`. |
 | `--verbose` | `-v` | bool | false | Detailed progress output |
 | `--parallel` | | bool | false | Run tasks concurrently |
-| `--workers` | `-w` | int | 4 | Number of concurrent workers |
+| `--workers` | `-w` | int | auto | Number of concurrent workers |
 | `--trials` | | int | `config.trials_per_task` | Run each task N times for flakiness detection (omit to use `config.trials_per_task`; when provided, value must be >= 1) |
 | `--task` | `-t` | string | | Filter tasks by name (repeatable) |
 | `--tags` | | string | | Filter tasks by tags (repeatable) |

@@ -118,8 +118,8 @@
         },
         "workers": {
           "type": "integer",
-          "minimum": 1,
-          "description": "Maximum number of concurrent workers when parallel is true."
+          "minimum": 0,
+          "description": "Maximum number of concurrent workers when parallel is true. Use 0 or omit to auto-size workers."
         },
         "fail_fast": {
           "type": "boolean",
