@@ -4,9 +4,9 @@ This guide explains how to run real integration tests using the GitHub Copilot S
 
 ## Prerequisites
 
-1. **Install the Copilot SDK dependency:**
+1. **Install waza:**
    ```bash
-   pip install waza[copilot]
+   curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
    ```
 
 2. **Authenticate with Copilot CLI:**
@@ -29,7 +29,7 @@ version: "1.0"
 config:
   trials_per_task: 3
   executor: copilot-sdk           # Use real Copilot SDK
-  model: claude-sonnet-4-20250514  # Specify model
+  model: claude-sonnet-4.6        # Specify model
   timeout_seconds: 300
   
   # Skill directories for the SDK to load
@@ -47,33 +47,32 @@ config:
 
 ### CLI Override
 
-You can override the executor and model at runtime:
+You can override the model and runtime options at launch:
 
 ```bash
-# Run with Copilot SDK instead of mock
-waza run eval.yaml --executor copilot-sdk --model claude-sonnet-4-20250514
+# Run with a different model
+waza run eval.yaml --model gpt-4o
 
 # Run with verbose output to see conversation in real-time
-waza run eval.yaml --executor copilot-sdk -v
+waza run eval.yaml --model claude-sonnet-4.6 -v
 
 # Provide project context files
-waza run eval.yaml --executor copilot-sdk --context-dir ./my-project
+waza run eval.yaml --model claude-sonnet-4.6 --context-dir ./my-project
 
 # Save conversation transcript for debugging
-waza run eval.yaml --executor copilot-sdk --log transcript.json
+waza run eval.yaml --model claude-sonnet-4.6 --session-log
 
 # Full debugging session
 waza run eval.yaml \
-  --executor copilot-sdk \
-  --model claude-sonnet-4-20250514 \
+  --model claude-sonnet-4.6 \
   --context-dir ./fixtures \
-  --log transcript.json \
+  --session-log \
   --output results.json \
   -v
 
 # Compare different models
 waza run eval.yaml --model gpt-4o -o results-gpt4o.json
-waza run eval.yaml --model claude-sonnet-4-20250514 -o results-claude.json
+waza run eval.yaml --model claude-sonnet-4.6 -o results-claude.json
 waza compare results-gpt4o.json results-claude.json
 ```
 
@@ -120,7 +119,7 @@ Compare results across different models:
 ```bash
 # Run the same eval with different models
 waza run eval.yaml --model gpt-4o -o results/gpt-4o.json
-waza run eval.yaml --model claude-sonnet-4-20250514 -o results/claude.json
+waza run eval.yaml --model claude-sonnet-4.6 -o results/claude.json
 waza run eval.yaml --model gpt-4o-mini -o results/gpt-4o-mini.json
 
 # Generate comparison report
@@ -153,11 +152,11 @@ Integration tests require authentication and are typically skipped in CI:
 ```yaml
 # .github/workflows/test.yaml
 - name: Run unit tests
-  run: waza run eval.yaml --executor mock
+  run: waza run eval.mock.yaml
   
 - name: Run integration tests (manual only)
   if: github.event_name == 'workflow_dispatch'
-  run: waza run eval.yaml --executor copilot-sdk
+  run: waza run eval.yaml
 ```
 
 ### Environment Variables
@@ -172,9 +171,7 @@ Integration tests require authentication and are typically skipped in CI:
 ### "Copilot SDK not installed"
 
 ```bash
-pip install waza[copilot]
-# or
-pip install copilot-sdk
+curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 ```
 
 ### "Authentication failed"
@@ -203,7 +200,7 @@ version: "1.0"
 config:
   trials_per_task: 3
   executor: copilot-sdk
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4.6
   timeout_seconds: 300
   skill_directories:
     - ../../skills
@@ -227,5 +224,5 @@ graders:
 
 ```bash
 # Run with real Copilot SDK
-waza run eval.yaml --executor copilot-sdk -o integration-results.json
+waza run eval.yaml --session-log -o integration-results.json
 ```
