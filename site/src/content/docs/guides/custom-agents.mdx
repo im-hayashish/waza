@@ -42,7 +42,7 @@ Create an `eval.yaml`:
 ```yaml
 name: my-agent-eval
 description: Evaluating my custom agent
-agent: my-agent  # Points to my-agent.agent.md in the same directory
+skill: my-agent  # Points to my-agent.agent.md in the same directory
 version: "1.0"
 
 config:
@@ -226,7 +226,7 @@ Target an agent by name or file path:
 ```yaml
 name: security-agent-eval
 description: Evaluate the security-reviewer agent
-agent: security-reviewer  # Resolves to security-reviewer.agent.md
+skill: security-reviewer  # Resolves to security-reviewer.agent.md
 
 version: "1.0"
 
@@ -256,7 +256,7 @@ tasks:
 
 **Key points:**
 
-- Use the `agent:` field instead of `skill:` to target an agent
+- Use the `skill:` field with the agent name to target an agent
 - All other eval.yaml structure is identical
 - Discovery and grading work the same way
 - The agent's `tools:` field auto-injects a constraint (unless you override it)

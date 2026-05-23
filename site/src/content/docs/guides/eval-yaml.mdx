@@ -50,16 +50,15 @@ tasks:
 | Field         | Type   | Required | Description                                                                                |
 | ------------- | ------ | -------- | ------------------------------------------------------------------------------------------ |
 | `name`        | string | ✓        | Eval suite name                                                                            |
-| `description` | string | ✓        | What the eval tests                                                                        |
-| `skill`       | string | ✓*       | Associated skill name (`SKILL.md` file)                                                    |
-| `agent`       | string | ✓*       | Associated custom agent name (`.agent.md` file). Use `agent` instead of `skill` for custom agents. |
+| `description` | string | ✗        | What the eval tests                                                                        |
+| `skill`       | string | ✓        | Associated skill or custom agent name (`SKILL.md` or `.agent.md`)                       |
 | `version`     | string | ✗        | Version number (e.g., "1.0")                                                               |
 | `inputs`      | object | ✗        | Key-value map of global template variables (see [Template Variables](#template-variables)) |
 | `tasks_from`  | string | ✗        | Path to an external YAML file containing the task list                                     |
 | `hooks`       | object | ✗        | Lifecycle hooks that run shell commands at specific points (see [Hooks](#hooks))           |
 | `baseline`    | bool   | ✗        | Mark this spec as a baseline for A/B comparison                                            |
 
-*Either `skill` or `agent` is required (one, not both).
+`skill` is required.
 
 ## Targeting Custom Agents
 
@@ -70,7 +69,7 @@ Waza supports evaluating VS Code custom agents (`.agent.md` files) alongside tra
 ```yaml
 name: security-agent-eval
 description: Evaluate the security-reviewer custom agent
-agent: security-reviewer  # Points to security-reviewer.agent.md
+skill: security-reviewer  # Points to security-reviewer.agent.md
 version: "1.0"
 
 config:
@@ -79,7 +78,7 @@ config:
 
 **Key differences:**
 
-- Use `agent: <name>` instead of `skill: <name>`
+- Use `skill: <name>` to target either a skill or a custom agent
 - Waza discovers `.agent.md` files the same way as `SKILL.md` — in the current directory or `agents/` subdirectories
 - If both `SKILL.md` and `.agent.md` exist in the same directory, `SKILL.md` takes priority
 - Custom agents can declare a `tools:` field in frontmatter, which auto-injects a `tool_constraint` grader
