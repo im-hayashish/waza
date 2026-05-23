@@ -785,10 +785,7 @@ func (r *EvalRunner) runSequential(ctx context.Context, testCases []*models.Test
 func (r *EvalRunner) runConcurrent(ctx context.Context, testCases []*models.TestCase) []models.TestOutcome {
 	// Simple concurrent implementation
 	spec := r.cfg.Spec()
-	workers := spec.Config.Workers
-	if workers <= 0 {
-		workers = 4
-	}
+	workers := ResolveWorkersStderr(spec.Config.Workers, len(testCases), "tasks")
 
 	type result struct {
 		index   int

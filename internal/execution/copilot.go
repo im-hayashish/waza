@@ -26,6 +26,14 @@ type CopilotEngine struct {
 
 	client CopilotClient
 
+	// ownsClient is true when this engine constructed its own copilot client
+	// and is therefore responsible for stopping it during Shutdown. When
+	// false (the default — the engine is built on top of [SharedClient]),
+	// Shutdown deletes only this engine's sessions and leaves the underlying
+	// SDK process running for other engines / graders. The top-level
+	// command must call [ShutdownSharedClient] to actually stop it.
+	ownsClient bool
+
 	startOnce sync.Once
 
 	workspacesMu  sync.Mutex
@@ -150,26 +158,38 @@ type CopilotEngineBuilderOptions struct {
 // NewCopilotEngineBuilder creates a builder for CopilotEngine
 //   - defaultModelID - used if no model ID is specified in session creation. Can be blank, which means the copilot
 //     CLI will choose its own fallback model.
+//
+// When `options.NewCopilotClient` is nil (the production path), the engine is
+// wired to the process-wide shared client returned by [SharedClient]. The
+// caller MUST invoke [ShutdownSharedClient] once at the top level after every
+// engine has been Shutdown — engines built on top of the shared client will
+// not stop it themselves. See docs/design/135-improve-concurrency.md (R2).
+//
+// When a `NewCopilotClient` factory is provided (test path), the engine
+// constructs its own client and stops it during Shutdown as before.
 func NewCopilotEngineBuilder(defaultModelID string, options *CopilotEngineBuilderOptions) *CopilotEngineBuilder {
 	var client CopilotClient
-
-	copilotOptions := &copilot.ClientOptions{
-		// workspace is set at the session level, instead of at the client.
-		LogLevel: "error",
-
-		AutoStart:   new(false), // we handle start in Initialize()
-		AutoRestart: new(true),  // this is a default, but just in case the defaults change...
-	}
+	ownsClient := false
 
 	if options == nil || options.NewCopilotClient == nil {
-		client = newCopilotClient(copilotOptions)
+		// Production: share one SDK process across all engines + graders.
+		client = SharedClient(SharedClientOptions{})
 	} else {
+		copilotOptions := &copilot.ClientOptions{
+			// workspace is set at the session level, instead of at the client.
+			LogLevel: "error",
+
+			AutoStart:   utils.Ptr(false), // we handle start in Initialize()
+			AutoRestart: utils.Ptr(true),  // this is a default, but just in case the defaults change...
+		}
 		client = options.NewCopilotClient(copilotOptions)
+		ownsClient = true
 	}
 
 	builder := &CopilotEngineBuilder{
 		engine: &CopilotEngine{
 			defaultModelID: defaultModelID,
+			ownsClient:     ownsClient,
 			provider:       providerFromEnv(),
 		},
 	}
@@ -180,6 +200,14 @@ func NewCopilotEngineBuilder(defaultModelID string, options *CopilotEngineBuilde
 
 func (b *CopilotEngineBuilder) Build() *CopilotEngine {
 	return b.engine
+}
+
+// CopilotClient returns the underlying Copilot SDK client backing this
+// engine. Graders that need to spin up their own grading session (e.g.
+// prompt graders) can use this to avoid spawning a fresh SDK process per
+// invocation. Callers must NOT call Stop() on the returned client.
+func (e *CopilotEngine) CopilotClient() CopilotClient {
+	return e.client
 }
 
 // SetKeepWorkspace enables or disables workspace preservation on shutdown.
@@ -216,14 +244,18 @@ func (e *CopilotEngine) Initialize(ctx context.Context) error {
 		authStatusResp, err := e.client.GetAuthStatus(ctx)
 
 		if err != nil {
-			_ = e.client.Stop()
+			if e.ownsClient {
+				_ = e.client.Stop()
+			}
 
 			startErr = fmt.Errorf("failed to get copilot authentication status. Use any installed instance of copilot CLI and run \"copilot login\" before using this command: %w", err)
 			return
 		}
 
 		if !authStatusResp.IsAuthenticated {
-			_ = e.client.Stop()
+			if e.ownsClient {
+				_ = e.client.Stop()
+			}
 
 			startErr = fmt.Errorf("copilot is not authenticated. Use any installed instance of copilot CLI and run \"copilot login\" before using this command")
 			return
@@ -480,8 +512,15 @@ func (e *CopilotEngine) doShutdown(ctx context.Context) error {
 		}
 	}
 
-	if err := e.client.Stop(); err != nil {
-		return fmt.Errorf("failed to stop client: %w", err)
+	// Only stop the underlying SDK client when this engine owns it.
+	// Engines built on the process-wide shared client (the production path)
+	// must leave the client running so other engines / graders can use it;
+	// the top-level command stops it via [ShutdownSharedClient]. See
+	// docs/design/135-improve-concurrency.md (R2).
+	if e.ownsClient {
+		if err := e.client.Stop(); err != nil {
+			return fmt.Errorf("failed to stop client: %w", err)
+		}
 	}
 
 	// remove the workspace folders - should be safe now that all the copilot sessions are shut down
