@@ -1,3 +1,9 @@
-name: review-clean-code
-prompt: Review the file fixtures/clean.go for security issues
-expected_behavior: Should report no vulnerabilities — the code uses parameterized queries and proper input handling
+# Task: Review clean code
+id: review-clean-code-001
+name: Review Clean Code
+description: Review clean.go and confirm it does not contain security issues.
+
+inputs:
+  prompt: Review the attached file for security issues.
+  files:
+    - path: clean.go

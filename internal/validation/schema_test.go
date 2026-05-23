@@ -141,6 +141,15 @@ func TestValidateEvalFile_InvalidEval(t *testing.T) {
 	require.NotEmpty(t, evalErrs, "invalid eval should return errors")
 }
 
+func TestValidateEvalFile_CustomAgentExample(t *testing.T) {
+	evalPath := filepath.Join("..", "..", "examples", "custom-agent", "eval.yaml")
+
+	evalErrs, taskErrs, err := ValidateEvalFile(evalPath)
+	require.NoError(t, err)
+	require.Empty(t, evalErrs, "custom-agent example eval should be valid")
+	require.Empty(t, taskErrs, "custom-agent example tasks should be valid")
+}
+
 func TestValidateEvalFile_InvalidTask(t *testing.T) {
 	dir := t.TempDir()
 

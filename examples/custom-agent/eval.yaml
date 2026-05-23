@@ -1,12 +1,19 @@
 name: security-reviewer-eval
 description: Evaluates the security-reviewer custom agent
+skill: security-reviewer
+version: "1.0"
 
 config:
-  executor: copilot
+  executor: copilot-sdk
   model: claude-sonnet-4
   trials_per_task: 1
   timeout_seconds: 120
   parallel: false
+
+metrics:
+  - name: review_quality
+    weight: 1.0
+    threshold: 0.8
 
 tasks:
   - tasks/*.yaml
@@ -20,8 +27,12 @@ graders:
 
   - type: prompt
     name: review_quality
-    rubric: |
-      Score 1-5 how well the response identified security issues:
-      5 — found all vulnerabilities with accurate severity and clear remediation
-      3 — found most issues but missed some details
-      1 — missed major vulnerabilities or wrong severity
+    config:
+      prompt: |
+        Score the response from 1 to 5 based on how well it identified security issues:
+        5 - found all vulnerabilities with accurate severity and clear remediation
+        3 - found most issues but missed some details
+        1 - missed major vulnerabilities or wrong severity
+
+        If the response scores 4 or 5, call set_waza_grade_pass with a short reason.
+        Otherwise, call set_waza_grade_fail with a short reason.

@@ -1,3 +1,9 @@
-name: find-sql-injection-in-vulnerable-py
-prompt: Review the file fixtures/vulnerable.py for security issues
-expected_behavior: Should identify SQL injection on the line where user input is concatenated into a query string
+# Task: Find SQL injection
+id: find-sql-injection-001
+name: Find SQL Injection
+description: Review vulnerable.py for SQL injection.
+
+inputs:
+  prompt: Review the attached file for security issues.
+  files:
+    - path: vulnerable.py

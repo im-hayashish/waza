@@ -1,3 +1,9 @@
-name: find-xss-in-template
-prompt: Review the file fixtures/xss.html for security issues
-expected_behavior: Should identify cross-site scripting (XSS) vulnerability where user content is rendered without escaping
+# Task: Find XSS
+id: find-xss-001
+name: Find XSS
+description: Review xss.html for cross-site scripting issues.
+
+inputs:
+  prompt: Review the attached file for security issues.
+  files:
+    - path: xss.html
