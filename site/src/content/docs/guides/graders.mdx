@@ -306,6 +306,8 @@ One of `schema` or `schema_file` is required.
 
 Uses a second LLM to evaluate the agent's work. The judge LLM calls `set_waza_grade_pass` or `set_waza_grade_fail` tool functions to render its verdict. This is the most flexible grader — it can assess quality, correctness, style, or anything you can describe in natural language.
 
+This is the closest Waza match for OpenAI Evals `modelgraded` specs. See the eval YAML guide for concrete `fact.yaml`, `closedqa.yaml`, and `battle.yaml` translations.
+
 ```yaml
 - type: prompt
   name: quality_check

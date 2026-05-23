@@ -165,6 +165,98 @@ All graders return:
 
 See the **[Validators & Graders](../graders/)** guide for all 12 types and examples.
 
+## Mapping OpenAI Evals `modelgraded` YAML
+
+OpenAI Evals `modelgraded` specs usually collapse into Waza's `prompt` grader. The judge prompt carries the label semantics, while Waza handles execution and scoring.
+
+| OpenAI Evals field | Waza equivalent | Notes |
+| ------------------ | --------------- | ----- |
+| `prompt` | `graders[].config.prompt` | Put the judging instructions directly in the prompt |
+| `choice_strings` | prompt text | List the labels in the judge prompt; Waza's prompt grader is binary, so the label choice becomes pass/fail guidance |
+| `choice_scores` | prompt text | Encode the scoring rule in the judge prompt; use `pairwise` mode when the comparison is relative |
+| `input_outputs` | `tasks:` entries | Turn each example into one Waza task with its own `inputs.prompt` and expected checks |
+| `eval_type: cot_classify` | `type: prompt` | Use `mode: independent` for one-shot classification |
+| `battle.yaml` | `type: prompt` + `mode: pairwise` | Closest grader match for head-to-head comparison; `waza compare` is still the better run-level report |
+
+### Translation examples
+
+#### `fact.yaml`
+
+OpenAI's registry uses this pattern for fixed-choice factual classification. In Waza, keep the evaluation as a single prompt grader and turn each input/output row into a task:
+
+```yaml
+graders:
+  - type: prompt
+    name: fact_check
+    config:
+      prompt: |
+        You are checking a multiple-choice answer.
+        Valid choices: A, B, C, D, E.
+        Call set_waza_grade_pass only if the model's answer matches the correct choice.
+        Otherwise call set_waza_grade_fail with a short reason.
+      continue_session: false
+
+tasks:
+  - id: fact-001
+    name: fact-001
+    inputs:
+      prompt: "Which answer is correct for the fact pattern?"
+    expected:
+      output_contains:
+        - "B"
+```
+
+#### `closedqa.yaml`
+
+For closed-book QA, the judge prompt can encode the score mapping directly:
+
+```yaml
+graders:
+  - type: prompt
+    name: closedqa_judge
+    config:
+      prompt: |
+        Judge the answer against the reference.
+        If the answer is fully correct, call set_waza_grade_pass.
+        If it is partially correct or incorrect, call set_waza_grade_fail.
+        Treat "Y" as 1.0 and "N" as 0.0 in your reasoning, but only emit pass/fail.
+      model: claude-sonnet-4.5
+
+tasks:
+  - id: closedqa-001
+    name: closedqa-001
+    inputs:
+      prompt: "Answer the question using the provided context."
+    expected:
+      output_contains:
+        - "Y"
+```
+
+#### `battle.yaml`
+
+Battle-style comparisons are the one place where the mapping is not 1:1. The nearest Waza translation is a pairwise prompt grader, but the run-level comparison report is usually better expressed with `waza compare`:
+
+```yaml
+config:
+  baseline: true
+
+graders:
+  - type: prompt
+    name: battle_judge
+    config:
+      mode: pairwise
+      prompt: |
+        Compare the two answers and decide which one is better.
+        Call set_waza_grade_pass if the skill run wins.
+        Call set_waza_grade_fail if the baseline run wins.
+
+tasks:
+  - id: battle-001
+    name: battle-001
+    inputs:
+      prompt: "Compare these two solutions and pick the better one."
+```
+
 ## Tasks Section
 
 Tasks define individual test cases loaded from YAML files:
