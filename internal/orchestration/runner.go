@@ -1156,6 +1156,9 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 		return nil, err
 	}
 	resources = append(resources, instructionResources...)
+	if err := rejectRelativePathPromptWithEmptySandbox(tc, resources); err != nil {
+		return nil, err
+	}
 
 	spec := r.cfg.Spec()
 	timeout := spec.Config.TimeoutSec
@@ -1184,6 +1187,19 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 		Timeout:         time.Duration(timeout) * time.Second,
 		MCPServers:      convertMCPServers(spec.Config.ServerConfigs),
 	}, nil
+}
+
+func rejectRelativePathPromptWithEmptySandbox(tc *models.TestCase, resources []execution.ResourceFile) error {
+	if len(resources) > 0 {
+		return nil
+	}
+
+	message := tc.Stimulus.Message
+	if strings.Contains(message, "./") || strings.Contains(message, "../") {
+		return fmt.Errorf("prompt references relative paths but no workspace files were loaded; use inputs.files to copy fixtures into the sandbox")
+	}
+
+	return nil
 }
 
 // executeFollowUps sends follow-up prompts using the same workspace and session,

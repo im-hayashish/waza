@@ -95,6 +95,8 @@ You'll see:
 
 Open `skills/my-skill/evals/eval.yaml` and modify it to this minimal spec:
 
+If your task needs files in the sandbox, list them under `inputs.files`; `--context-dir` is only the lookup base for those paths.
+
 ```yaml
 name: my-skill-eval
 description: Test my skill
@@ -106,7 +108,8 @@ graders:
   - type: text
     name: has_response
     config:
-      pattern: "\\w+"
+      contains:
+        - "How can I help"
 
 tasks:
   - name: test-task-1

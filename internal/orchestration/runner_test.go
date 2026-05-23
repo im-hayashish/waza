@@ -148,6 +148,34 @@ func TestBuildExecutionRequest_BasicFields(t *testing.T) {
 	assert.Equal(t, "value", req.Context["key"])
 }
 
+func TestBuildExecutionRequest_RejectsRelativePathPromptWithEmptySandbox(t *testing.T) {
+	spec := &models.EvalSpec{
+		SpecIdentity: models.SpecIdentity{Name: "test-benchmark"},
+		SkillName:    "my-skill",
+		Config: models.Config{
+			EngineType: "mock",
+			ModelID:    "gpt-4",
+			TimeoutSec: 60,
+		},
+	}
+
+	cfg := config.NewEvalConfig(spec)
+	runner := NewEvalRunner(cfg, nil)
+
+	tc := &models.TestCase{
+		TestID:      "test-001",
+		DisplayName: "Test Case",
+		Stimulus: models.TaskStimulus{
+			Message: "Explore the repository at ./my-repo and describe its architecture.",
+		},
+	}
+
+	req, err := runner.buildExecutionRequest(tc)
+	require.Error(t, err)
+	assert.Nil(t, req)
+	assert.Contains(t, err.Error(), "no workspace files were loaded")
+}
+
 func TestBuildExecutionRequest_TimeoutOverride(t *testing.T) {
 	// Create a spec with default timeout
 	spec := &models.EvalSpec{
