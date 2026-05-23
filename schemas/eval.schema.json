@@ -171,6 +171,11 @@
           },
           "description": "Instruction files to apply to every task, resolved relative to the active context/fixtures directory."
         },
+        "inject_skill_body": {
+          "type": "boolean",
+          "default": true,
+          "description": "When false, do not inject the target SKILL.md or .agent.md body into the system prompt. Skill discovery and compact available_skills summaries remain enabled."
+        },
         "disabled_skills": {
           "type": "array",
           "items": {
