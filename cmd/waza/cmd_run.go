@@ -9,9 +9,11 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/text/language"
@@ -70,7 +72,16 @@ var (
 
 	// newCopilotClientFn allows you to override the client used by the copilot engine, for this command.
 	newCopilotClientFn func(clientOptions *copilot.ClientOptions) execution.CopilotClient
+
+	newBenchmarkRunner = func(cfg *config.EvalConfig, engine execution.AgentEngine, opts ...orchestration.RunnerOption) benchmarkRunner {
+		return orchestration.NewEvalRunner(cfg, engine, opts...)
+	}
 )
+
+type benchmarkRunner interface {
+	OnProgress(orchestration.ProgressListener)
+	RunBenchmark(context.Context) (*models.EvaluationOutcome, error)
+}
 
 // modelResult pairs a model identifier with its evaluation outcome.
 type modelResult struct {
@@ -672,7 +683,7 @@ func runSingleModel(cmd *cobra.Command, spec *models.EvalSpec, specPath string, 
 	if skipGradersFlag {
 		runnerOpts = append(runnerOpts, orchestration.WithSkipGraders())
 	}
-	runner := orchestration.NewEvalRunner(cfg, engine, runnerOpts...)
+	runner := newBenchmarkRunner(cfg, engine, runnerOpts...)
 
 	// Setup session logger if enabled
 	var sessLogger session.Logger = session.NopLogger{}
@@ -729,8 +740,15 @@ func runSingleModel(cmd *cobra.Command, spec *models.EvalSpec, specPath string, 
 		runner.OnProgress(simpleProgressListener)
 	}
 
-	// Run benchmark
-	ctx := context.Background()
+	// Run benchmark with signal cancellation so Ctrl+C stops the long-running work.
+	var ctx context.Context
+	var stop context.CancelFunc
+	if cmd != nil {
+		ctx, stop = signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	} else {
+		ctx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	}
+	defer stop()
 
 	fmt.Printf("Running benchmark: %s\n", spec.Name)
 	fmt.Printf("Skill: %s\n", spec.SkillName)

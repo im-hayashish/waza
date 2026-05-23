@@ -19,9 +19,11 @@ import (
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/microsoft/waza/internal/config"
 	"github.com/microsoft/waza/internal/execution"
 	"github.com/microsoft/waza/internal/graders"
 	"github.com/microsoft/waza/internal/models"
+	"github.com/microsoft/waza/internal/orchestration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -55,6 +57,9 @@ func resetRunGlobals() {
 	updateSnapshots = false
 	keepWorkspace = false
 	newCopilotClientFn = nil
+	newBenchmarkRunner = func(cfg *config.EvalConfig, engine execution.AgentEngine, opts ...orchestration.RunnerOption) benchmarkRunner {
+		return orchestration.NewEvalRunner(cfg, engine, opts...)
+	}
 }
 
 // helper creates a valid minimal eval spec YAML in a temp dir,
