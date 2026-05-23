@@ -14,9 +14,9 @@ Download and install the latest pre-built binary with the Bash install script on
 curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
 ```
 
-The script auto-detects the OS and architecture of the environment where Bash is running (linux/darwin/windows, amd64/arm64), downloads the binary, verifies the checksum, and installs to `/usr/local/bin` (or `~/bin` if not writable). On Windows, piping this command to `bash` from PowerShell may invoke WSL and install the Linux binary inside WSL. For native Windows, download `waza-windows-amd64.exe` or `waza-windows-arm64.exe` directly from the [latest release](https://github.com/microsoft/waza/releases/latest), rename it to `waza.exe`, and place it in a directory on your `PATH`.
+The script auto-detects the OS and architecture of the environment where Bash is running (linux/darwin/windows, amd64/arm64), downloads the binary, verifies the checksum, and installs to `/usr/local/bin` (or `~/bin` if not writable). On Windows, piping this command to `bash` from PowerShell may invoke WSL and install the Linux binary inside WSL. For native Windows, download `waza-windows-amd64.exe` or `waza-windows-arm64.exe` from the standalone waza release assets on GitHub Releases, rename it to `waza.exe`, and place it in a directory on your `PATH`.
 
-Or download binaries directly from the [latest release](https://github.com/microsoft/waza/releases/latest).
+Or browse the [GitHub Releases](https://github.com/microsoft/waza/releases) page and choose the standalone waza binary assets for the version you want.
 
 ### Install from Source
 
