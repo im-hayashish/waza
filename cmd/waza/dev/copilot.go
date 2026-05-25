@@ -157,10 +157,11 @@ func getCopilotSuggestions(ctx context.Context, engine execution.AgentEngine, sk
 		prompt.WriteString(formatTriggerExamples(triggerSpec))
 	}
 
-	res, err := engine.Execute(ctx, &execution.ExecutionRequest{
+	execCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	res, err := engine.Execute(execCtx, &execution.ExecutionRequest{
 		Message: prompt.String(),
-		Timeout: 120 * time.Second,
 	})
+	cancel()
 	if err != nil {
 		return "", fmt.Errorf("getting Copilot suggestions: %w", err)
 	}

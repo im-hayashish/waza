@@ -42,9 +42,9 @@ func TestJoinStrings(t *testing.T) {
 	assert.Equal(t, "abc", joinStrings([]string{"a", "b", "c"}))
 }
 
-// TestCopilotEngine_Execute_StartRespectsTimeout verifies that a Start() call
-// that blocks indefinitely is canceled by req.Timeout, preventing a deadlock.
-func TestCopilotEngine_Execute_StartRespectsTimeout(t *testing.T) {
+// TestCopilotEngine_Execute_StartRespectsCallerContext verifies that a Start()
+// call that blocks indefinitely is canceled by the caller context.
+func TestCopilotEngine_Execute_StartRespectsCallerContext(t *testing.T) {
 	t.Attr("Issue", "https://github.com/github/copilot-sdk/issues/668")
 	t.Skip("Skipping - passing a context to copilot.Start causes copilot CLI to exit")
 
@@ -64,10 +64,11 @@ func TestCopilotEngine_Execute_StartRespectsTimeout(t *testing.T) {
 		},
 	}).Build()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
 	start := time.Now()
-	_, err := engine.Execute(context.Background(), &ExecutionRequest{
+	_, err := engine.Execute(ctx, &ExecutionRequest{
 		Message: "hello",
-		Timeout: 50 * time.Millisecond,
 	})
 	elapsed := time.Since(start)
 
@@ -96,10 +97,90 @@ func TestCopilotEngine_Execute_CreateSessionError(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	resp, err := engine.Execute(context.Background(), &ExecutionRequest{Message: "hello", Timeout: time.Second})
+	resp, err := engine.Execute(context.Background(), &ExecutionRequest{Message: "hello"})
 	require.Error(t, err)
 	assert.Nil(t, resp)
 	assert.Contains(t, err.Error(), "failed to create session")
+}
+
+func TestCopilotEngine_Execute_UsesCallerDeadline(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	clientMock := newClientMock(ctrl)
+
+	expectedDeadline := time.Now().Add(time.Minute)
+	clientMock.EXPECT().CreateSession(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, _ *copilot.SessionConfig) (CopilotSession, error) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok)
+			assert.WithinDuration(t, expectedDeadline, deadline, time.Second)
+			return nil, errors.New("session create failed")
+		})
+
+	engine := NewCopilotEngineBuilder("test", &CopilotEngineBuilderOptions{
+		NewCopilotClient: func(clientOptions *copilot.ClientOptions) CopilotClient {
+			return clientMock
+		},
+	}).Build()
+
+	require.NoError(t, engine.Initialize(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, engine.Shutdown(context.Background()))
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), expectedDeadline)
+	defer cancel()
+	resp, err := engine.Execute(ctx, &ExecutionRequest{Message: "hello"})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+}
+
+func TestCopilotEngine_Execute_AlreadyExpiredContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	clientMock := newClientMock(ctrl)
+
+	engine := NewCopilotEngineBuilder("test", &CopilotEngineBuilderOptions{
+		NewCopilotClient: func(clientOptions *copilot.ClientOptions) CopilotClient {
+			return clientMock
+		},
+	}).Build()
+
+	require.NoError(t, engine.Initialize(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, engine.Shutdown(context.Background()))
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	resp, err := engine.Execute(ctx, &ExecutionRequest{Message: "hello"})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Nil(t, resp)
+}
+
+func TestCopilotEngine_Execute_NoDefaultTimeout(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	clientMock := newClientMock(ctrl)
+
+	clientMock.EXPECT().CreateSession(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, _ *copilot.SessionConfig) (CopilotSession, error) {
+			_, ok := ctx.Deadline()
+			assert.False(t, ok)
+			return nil, errors.New("session create failed")
+		})
+
+	engine := NewCopilotEngineBuilder("test", &CopilotEngineBuilderOptions{
+		NewCopilotClient: func(clientOptions *copilot.ClientOptions) CopilotClient {
+			return clientMock
+		},
+	}).Build()
+
+	require.NoError(t, engine.Initialize(context.Background()))
+	t.Cleanup(func() {
+		require.NoError(t, engine.Shutdown(context.Background()))
+	})
+
+	resp, err := engine.Execute(context.Background(), &ExecutionRequest{Message: "hello"})
+	require.Error(t, err)
+	assert.Nil(t, resp)
 }
 
 func TestCopilotEngine_Execute_SendError(t *testing.T) {
@@ -129,7 +210,7 @@ func TestCopilotEngine_Execute_SendError(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	resp, err := engine.Execute(context.Background(), &ExecutionRequest{Message: "hello", Timeout: time.Second})
+	resp, err := engine.Execute(context.Background(), &ExecutionRequest{Message: "hello"})
 	require.NoError(t, err)
 
 	require.False(t, resp.Success)
@@ -180,7 +261,6 @@ func TestCopilotEngine_Execute_PassesGraderRequestOptionsAndDeletesEphemeralSess
 		MessageMode:          MessageModeEnqueue,
 		Streaming:            true,
 		NoSkills:             true,
-		Timeout:              time.Second,
 		EphemeralSession:     true,
 		SkipWorkspaceCapture: true,
 	})
@@ -222,7 +302,6 @@ func TestCopilotEngine_Execute_ResumedEphemeralSessionIsNotDeletedOrTracked(t *t
 		Tools:                []copilot.Tool{{Name: "judge-tool"}},
 		Streaming:            true,
 		NoSkills:             true,
-		Timeout:              time.Second,
 		EphemeralSession:     true,
 		SkipWorkspaceCapture: true,
 	})

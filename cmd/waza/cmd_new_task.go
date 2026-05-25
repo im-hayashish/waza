@@ -147,12 +147,13 @@ func newTaskFromPromptCmd(options *newTaskFromPromptCmdOptions) *cobra.Command {
 			taskList.AddTask(ux.TaskOptions{
 				Title: "Execute prompt",
 				Action: func(spf ux.SetProgressFunc) (ux.TaskState, error) {
-					resp, err := engine.Execute(cmd.Context(), &execution.ExecutionRequest{
+					execCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
+					resp, err := engine.Execute(execCtx, &execution.ExecutionRequest{
 						ModelID:    model,
 						Message:    prompt,
 						SkillPaths: skillPaths,
-						Timeout:    timeout,
 					})
+					cancel()
 
 					if err != nil {
 						return ux.Error, err

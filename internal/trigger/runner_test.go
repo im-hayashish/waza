@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/microsoft/waza/internal/config"
 	"github.com/microsoft/waza/internal/execution"
@@ -157,11 +158,14 @@ func TestEvalRunnerRunConfig(t *testing.T) {
 		config.WithSpecDir("/base"),
 	)
 	r := NewRunner(spec, engine, cfg, nil)
+	start := time.Now()
 	if _, err := r.Run(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	require.NotNil(t, engine.LastReq(), "expected a captured request")
-	require.Equal(t, float64(120), engine.LastReq().Timeout.Seconds())
+	deadline, ok := engine.LastDeadline()
+	require.True(t, ok, "expected trigger timeout as context deadline")
+	require.WithinDuration(t, start.Add(120*time.Second), deadline, time.Second)
 	if len(engine.LastReq().SkillPaths) != 2 {
 		t.Errorf("SkillPaths = %v, want 2 entries", engine.LastReq().SkillPaths)
 	}
@@ -169,17 +173,20 @@ func TestEvalRunnerRunConfig(t *testing.T) {
 }
 
 type capturingEngine struct {
-	mu      sync.Mutex
-	lastReq *execution.ExecutionRequest
+	mu           sync.Mutex
+	lastReq      *execution.ExecutionRequest
+	lastDeadline time.Time
+	hasDeadline  bool
 }
 
 func (e *capturingEngine) Initialize(context.Context) error       { return nil }
 func (e *capturingEngine) Shutdown(context.Context) error         { return nil }
 func (e *capturingEngine) SessionUsage(string) *models.UsageStats { return nil }
 
-func (e *capturingEngine) Execute(_ context.Context, req *execution.ExecutionRequest) (*execution.ExecutionResponse, error) {
+func (e *capturingEngine) Execute(ctx context.Context, req *execution.ExecutionRequest) (*execution.ExecutionResponse, error) {
 	e.mu.Lock()
 	e.lastReq = req
+	e.lastDeadline, e.hasDeadline = ctx.Deadline()
 	e.mu.Unlock()
 	return &execution.ExecutionResponse{FinalOutput: "ok", Success: true}, nil
 }
@@ -188,6 +195,12 @@ func (e *capturingEngine) LastReq() *execution.ExecutionRequest {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.lastReq
+}
+
+func (e *capturingEngine) LastDeadline() (time.Time, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastDeadline, e.hasDeadline
 }
 
 func TestEvalRunnerNeverTriggers(t *testing.T) {

@@ -686,10 +686,11 @@ func wrapText(text string, width int) string {
 }
 
 func copilotReport(ctx context.Context, engine execution.AgentEngine, content string) (string, error) {
-	res, err := engine.Execute(ctx, &execution.ExecutionRequest{
+	execCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	res, err := engine.Execute(execCtx, &execution.ExecutionRequest{
 		Message: suggestionPrompt + content,
-		Timeout: 60 * time.Second,
 	})
+	cancel()
 	if err != nil {
 		return "", err
 	}

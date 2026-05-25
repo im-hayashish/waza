@@ -69,10 +69,11 @@ func Generate(ctx context.Context, engine execution.AgentEngine, opts Options) (
 	if opts.GraderDocs != nil {
 		// Pass 1: select grader types
 		selectionPrompt := renderSelectionPrompt(data)
-		resp, err := engine.Execute(ctx, &execution.ExecutionRequest{
+		selectionCtx, cancelSelection := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+		resp, err := engine.Execute(selectionCtx, &execution.ExecutionRequest{
 			Message: selectionPrompt,
-			Timeout: time.Duration(timeoutSec) * time.Second,
 		})
+		cancelSelection()
 		if err != nil {
 			return nil, fmt.Errorf("grader selection: %w", err)
 		}
@@ -88,10 +89,11 @@ func Generate(ctx context.Context, engine execution.AgentEngine, opts Options) (
 
 	// Pass 2 (or single pass): generate eval YAML
 	implPrompt := renderImplementationPrompt(data, graderDocs)
-	resp, err := engine.Execute(ctx, &execution.ExecutionRequest{
+	implCtx, cancelImpl := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	resp, err := engine.Execute(implCtx, &execution.ExecutionRequest{
 		Message: implPrompt,
-		Timeout: time.Duration(timeoutSec) * time.Second,
 	})
+	cancelImpl()
 	if err != nil {
 		return nil, fmt.Errorf("getting suggestions: %w", err)
 	}

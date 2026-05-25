@@ -1036,8 +1036,19 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 		})
 	}
 
-	// Execute
-	resp, err := r.engine.Execute(ctx, req)
+	// Execute with the eval/task timeout represented as a context deadline.
+	timeout, err := r.executionTimeout(tc)
+	if err != nil {
+		return models.RunResult{
+			RunNumber:  runNum,
+			Status:     models.StatusError,
+			DurationMs: time.Since(startTime).Milliseconds(),
+			ErrorMsg:   err.Error(),
+		}
+	}
+	execCtx, cancelExec := context.WithTimeout(ctx, timeout)
+	resp, err := r.engine.Execute(execCtx, req)
+	cancelExec()
 	if err != nil {
 		return models.RunResult{
 			RunNumber:  runNum,
@@ -1158,11 +1169,6 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 	}
 
 	spec := r.cfg.Spec()
-	timeout := spec.Config.TimeoutSec
-	if tc.TimeoutSec != nil {
-		timeout = *tc.TimeoutSec
-	}
-
 	// Use task-level skill paths if specified, otherwise fall back to eval-level
 	skillPaths := spec.Config.FilteredSkillPaths()
 	if len(tc.SkillPaths) > 0 {
@@ -1182,9 +1188,19 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 		SkillPaths:        resolvedSkillPaths,
 		NoSkills:          noSkills,
 		SuppressSkillBody: !spec.Config.ShouldInjectSkillBody(),
-		Timeout:           time.Duration(timeout) * time.Second,
 		MCPServers:        convertMCPServers(spec.Config.ServerConfigs),
 	}, nil
+}
+
+func (r *EvalRunner) executionTimeout(tc *models.TestCase) (time.Duration, error) {
+	timeout := r.cfg.Spec().Config.TimeoutSec
+	if tc.TimeoutSec != nil {
+		if err := tc.Validate(); err != nil {
+			return 0, err
+		}
+		timeout = *tc.TimeoutSec
+	}
+	return time.Duration(timeout) * time.Second, nil
 }
 
 func rejectRelativePathPromptWithEmptySandbox(tc *models.TestCase, resources []execution.ResourceFile) error {
@@ -1221,7 +1237,14 @@ func (r *EvalRunner) executeFollowUps(ctx context.Context, tc *models.TestCase, 
 			})
 		}
 
-		followResp, err := r.engine.Execute(ctx, followReq)
+		timeout, err := r.executionTimeout(tc)
+		if err != nil {
+			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d setup failed: %v", i+1, len(tc.Stimulus.FollowUps), err)
+			break
+		}
+		followCtx, cancelFollow := context.WithTimeout(ctx, timeout)
+		followResp, err := r.engine.Execute(followCtx, followReq)
+		cancelFollow()
 		if err != nil {
 			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d failed: %v", i+1, len(tc.Stimulus.FollowUps), err)
 			break

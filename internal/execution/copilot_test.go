@@ -76,7 +76,6 @@ func TestCopilotNoSessionID(t *testing.T) {
 		Message:   "hello?",
 		ModelID:   "this-model-wins",
 		SessionID: "", // ie, create a new session each time
-		Timeout:   time.Minute,
 		SourceDir: sourceDir,
 	})
 	require.NoError(t, err)
@@ -131,7 +130,6 @@ func TestCopilotResumeSessionID(t *testing.T) {
 	resp, err := engine.Execute(ctx, &ExecutionRequest{
 		Message:   "hello?",
 		SessionID: "session-1",
-		Timeout:   time.Minute,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "session-1", resp.SessionID)
@@ -236,7 +234,6 @@ func TestCopilotCreateSession_PassesCustomProvider(t *testing.T) {
 
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message:   "hello?",
-		Timeout:   time.Minute,
 		SourceDir: sourceDir,
 	})
 	require.NoError(t, err)
@@ -302,7 +299,6 @@ func TestCopilotResumeSession_PassesCustomProvider(t *testing.T) {
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message:   "hello?",
 		SessionID: "session-1",
-		Timeout:   time.Minute,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Success)
@@ -350,11 +346,9 @@ func TestCopilotResumeSessionID_Live(t *testing.T) {
 	})
 
 	randIntAsStr := strconv.FormatInt(rand.Int63(), 10)
-	const timeout = time.Minute
 
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message: fmt.Sprintf("Memorize this integer and echo it back to me: %s", randIntAsStr),
-		Timeout: timeout,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.SessionID)
@@ -363,7 +357,6 @@ func TestCopilotResumeSessionID_Live(t *testing.T) {
 	resp, err = engine.Execute(context.Background(), &ExecutionRequest{
 		SessionID: resp.SessionID,
 		Message:   "What number did I ask you to memorize?",
-		Timeout:   timeout,
 	})
 	require.NoError(t, err)
 	require.Contains(t, resp.FinalOutput, randIntAsStr)
@@ -409,41 +402,10 @@ func TestCopilotSendAndWaitReturnsErrorInResult(t *testing.T) {
 
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message:   "message",
-		Timeout:   time.Minute,
 		SourceDir: sourceDir,
 	})
 	require.NoError(t, err)
 	require.Equal(t, sessionErrorMsg, resp.ErrorMsg)
-}
-
-func TestCopilotExecute_RequiredFields(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	client := NewMockCopilotClient(ctrl)
-	// Start() should NOT be called when the request is invalid (e.g. Timeout == 0),
-	// because extractReqParams now runs before startOnce.Do.
-
-	builder := NewCopilotEngineBuilder("gpt-4o-mini", &CopilotEngineBuilderOptions{
-		NewCopilotClient: func(clientOptions *copilot.ClientOptions) CopilotClient {
-			return client
-		},
-	})
-	engine := builder.Build()
-
-	testCases := []struct {
-		ER    ExecutionRequest
-		Error string
-	}{
-		{ER: ExecutionRequest{Timeout: 0}, Error: "positive Timeout is required"},
-	}
-
-	for _, td := range testCases {
-		t.Run("error: "+td.Error, func(t *testing.T) {
-			resp, err := engine.Execute(context.Background(), &td.ER)
-			require.ErrorContains(t, err, td.Error)
-			require.Empty(t, resp)
-		})
-	}
 }
 
 func TestCopilotInitialize_PropagatesStartError(t *testing.T) {
@@ -484,7 +446,6 @@ func TestCopilotExecuteParallel_Live(t *testing.T) {
 			eg.Go(func() error {
 				_, err := engine.Execute(ctx, &ExecutionRequest{
 					Message: "hello!",
-					Timeout: 30 * time.Second,
 				})
 				return err
 			})
@@ -673,7 +634,6 @@ func TestCopilotCreateSession_InjectsSkillSystemMessage(t *testing.T) {
 		Message:   "hello",
 		SkillName: "test-skill",
 		SourceDir: sourceDir,
-		Timeout:   time.Minute,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Success)
@@ -735,7 +695,6 @@ func TestCopilotCreateSession_InjectsInstructionSystemMessage(t *testing.T) {
 		SkillName:    "test-skill",
 		SourceDir:    sourceDir,
 		Instructions: instructions,
-		Timeout:      time.Minute,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Success)
@@ -785,7 +744,6 @@ func TestCopilotCreateSession_PassesMCPServers(t *testing.T) {
 		Message:    "hello",
 		SourceDir:  sourceDir,
 		MCPServers: mcpServers,
-		Timeout:    time.Minute,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Success)
@@ -847,7 +805,6 @@ func TestCopilotResumeSession_PassesMCPServersAndSystemMessage(t *testing.T) {
 		SkillName:  "resume-skill",
 		SourceDir:  sourceDir,
 		MCPServers: mcpServers,
-		Timeout:    time.Minute,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Success)
@@ -905,7 +862,6 @@ func TestCopilotExecute_CancelOnSkillInvocation(t *testing.T) {
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message:                 "invoke a skill please",
 		SourceDir:               sourceDir,
-		Timeout:                 30 * time.Second,
 		CancelOnSkillInvocation: true,
 	})
 	require.NoError(t, err)
@@ -941,7 +897,6 @@ func TestCopilotExecute_CancelOnSkillInvocation_NoSkillFired(t *testing.T) {
 	resp, err := engine.Execute(context.Background(), &ExecutionRequest{
 		Message:                 "do something normal",
 		SourceDir:               sourceDir,
-		Timeout:                 30 * time.Second,
 		CancelOnSkillInvocation: true,
 	})
 	require.NoError(t, err)

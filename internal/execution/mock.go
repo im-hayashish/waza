@@ -43,6 +43,9 @@ func (m *MockEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Execu
 	if !m.initCalled.Load() {
 		return nil, fmt.Errorf("engine was not initialized. Initialize needs to be called before Execute")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()

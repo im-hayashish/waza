@@ -52,10 +52,11 @@ func Judge(ctx context.Context, engine execution.AgentEngine, opts JudgeOptions)
 
 	prompt := BuildJudgePrompt(string(content), rubric)
 
-	resp, err := engine.Execute(ctx, &execution.ExecutionRequest{
+	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	resp, err := engine.Execute(execCtx, &execution.ExecutionRequest{
 		Message: prompt,
-		Timeout: time.Duration(timeoutSec) * time.Second,
 	})
+	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("judge execution: %w", err)
 	}

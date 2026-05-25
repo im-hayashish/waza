@@ -82,7 +82,6 @@ func (p *promptGrader) gradeIndependent(ctx context.Context, gradingContext *Con
 			SessionID:            resumeID,
 			WorkspaceDir:         gradingContext.WorkspaceDir,
 			NoSkills:             true,
-			Timeout:              promptGraderTimeout,
 			EphemeralSession:     true,
 			SkipWorkspaceCapture: true,
 		})
@@ -148,7 +147,9 @@ func executePromptGrader(ctx context.Context, gradingContext *Context, req *exec
 	if gradingContext.Executor == nil {
 		return nil, errors.New("prompt grader requires an execution engine")
 	}
-	return gradingContext.Executor.Execute(ctx, req)
+	execCtx, cancel := context.WithTimeout(ctx, promptGraderTimeout)
+	defer cancel()
+	return gradingContext.Executor.Execute(execCtx, req)
 }
 
 func promptGraderErrorMessage(resp *execution.ExecutionResponse, err error) string {
@@ -380,7 +381,6 @@ func (p *promptGrader) runPairwiseOnce(
 		Streaming:            true,
 		WorkspaceDir:         gradingContext.WorkspaceDir,
 		NoSkills:             true,
-		Timeout:              promptGraderTimeout,
 		EphemeralSession:     true,
 		SkipWorkspaceCapture: true,
 	})

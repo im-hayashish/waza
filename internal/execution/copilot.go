@@ -282,6 +282,9 @@ func (e *CopilotEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Ex
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	start := time.Now()
 
@@ -315,12 +318,6 @@ func (e *CopilotEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Ex
 			Mode:    "append",
 			Content: strings.Join(systemMessageParts, "\n"),
 		}
-	}
-
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, req.Timeout)
-		defer cancel()
 	}
 
 	var session CopilotSession
@@ -579,10 +576,6 @@ func (e *CopilotEngine) extractReqParams(req *ExecutionRequest) (modelID string,
 		}
 
 		sourceDir = cwd
-	}
-
-	if req.Timeout <= 0 {
-		return "", "", fmt.Errorf("positive Timeout is required")
 	}
 
 	return modelID, sourceDir, nil

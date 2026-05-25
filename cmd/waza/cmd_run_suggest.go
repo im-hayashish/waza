@@ -75,12 +75,13 @@ func generateEvalAnalysis(
 
 	resources := loadSkillResources(resolvedSkillPaths)
 	prompt := buildRunAnalysisPrompt(spec, failingTests, failedTriggers, testDefinitions)
-	res, err := engine.Execute(ctx, &execution.ExecutionRequest{
+	execCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	res, err := engine.Execute(execCtx, &execution.ExecutionRequest{
 		Message:    prompt,
-		Timeout:    120 * time.Second,
 		SkillPaths: resolvedSkillPaths,
 		Resources:  resources,
 	})
+	cancel()
 	if err != nil {
 		return "", fmt.Errorf("getting Copilot suggestions: %w", err)
 	}
