@@ -1181,6 +1181,8 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 		Message:           tc.Stimulus.Message,
 		Context:           tc.Stimulus.Metadata,
 		Resources:         resources,
+		GitResources:      tc.Stimulus.Repos,
+		WorkDir:           tc.Stimulus.WorkDir,
 		Instructions:      instructions,
 		SkillName:         spec.SkillName,
 		TaskName:          tc.DisplayName,

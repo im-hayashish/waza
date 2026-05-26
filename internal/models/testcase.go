@@ -34,6 +34,8 @@ type TaskStimulus struct {
 	MessageFile string            `yaml:"prompt_file,omitempty" json:"message_file,omitempty"`
 	Metadata    map[string]any    `yaml:"context,omitempty" json:"metadata,omitempty"`
 	Resources   []ResourceRef     `yaml:"files,omitempty" json:"resources,omitempty"`
+	Repos       []GitResource     `yaml:"repos,omitempty" json:"repos,omitempty"`
+	WorkDir     string            `yaml:"workdir,omitempty" json:"workdir,omitempty"`
 	Environment map[string]string `yaml:"environment,omitempty" json:"environment,omitempty"`
 	FollowUps   []string          `yaml:"follow_up_prompts,omitempty" json:"follow_ups,omitempty"`
 }
@@ -42,6 +44,88 @@ type TaskStimulus struct {
 type ResourceRef struct {
 	Location string `yaml:"path,omitempty" json:"location,omitempty"`
 	Body     string `yaml:"content,omitempty" json:"body,omitempty"`
+}
+
+// GitResourceType identifies how a git resource is materialized.
+type GitResourceType string
+
+const (
+	// GitResourceTypeWorktree materializes the resource via `git worktree add`
+	// against a local source repository. It is cheap and requires no network.
+	GitResourceTypeWorktree GitResourceType = "worktree"
+)
+
+// GitResource describes a git repository to materialize into the per-task
+// workspace before the agent runs. Currently only the `worktree` strategy is
+// supported; additional strategies (e.g. HTTPS clone) can be added later
+// without breaking the YAML surface.
+type GitResource struct {
+	// Type selects the materialization strategy. Required. Only "worktree"
+	// is currently supported.
+	Type GitResourceType `yaml:"type" json:"type"`
+	// Source is the local path to a git repository. Required for the
+	// "worktree" strategy.
+	Source string `yaml:"source" json:"source"`
+	// Commit is an optional commit SHA, branch, or tag to check out.
+	// Defaults to the source repo's HEAD when empty.
+	Commit string `yaml:"commit,omitempty" json:"commit,omitempty"`
+	// Dest is an optional subdirectory under the workspace to materialize
+	// the repo into. When empty, the repo is materialized at the workspace
+	// root. Must be a relative path that does not escape the workspace.
+	Dest string `yaml:"dest,omitempty" json:"dest,omitempty"`
+}
+
+// Validate verifies that the git resource has the required fields and that
+// its destination path is safe (relative, no traversal segments).
+func (g *GitResource) Validate() error {
+	switch g.Type {
+	case GitResourceTypeWorktree:
+		if g.Source == "" {
+			return fmt.Errorf("git resource (type=worktree): source is required")
+		}
+		// Worktree requires a non-empty dest because `git worktree add`
+		// refuses targets that already exist, and the engine creates the
+		// workspace directory before materializing resources into it.
+		if g.Dest == "" {
+			return fmt.Errorf("git resource (type=worktree): dest is required (must point at a subdirectory under the workspace)")
+		}
+	case "":
+		return fmt.Errorf("git resource: type is required (only %q is currently supported)", GitResourceTypeWorktree)
+	default:
+		return fmt.Errorf("git resource: unsupported type %q (only %q is supported)", g.Type, GitResourceTypeWorktree)
+	}
+
+	if g.Dest != "" {
+		// filepath.IsAbs returns false for paths like "/foo" on Windows (rooted but
+		// not fully qualified). Reject any path that starts with a separator too.
+		if filepath.IsAbs(g.Dest) || strings.HasPrefix(g.Dest, "/") || strings.HasPrefix(g.Dest, `\`) {
+			return fmt.Errorf("git resource: dest %q must be a relative path", g.Dest)
+		}
+		// Check the RAW input for `..` segments so inputs like
+		// "foo/../bar" are rejected even though filepath.Clean would
+		// silently normalize them away before any later check sees them.
+		if containsTraversalSegmentInPath(g.Dest) {
+			return fmt.Errorf("git resource: dest %q must not contain '..' segments", g.Dest)
+		}
+	}
+
+	return nil
+}
+
+// containsTraversalSegmentInPath reports whether the path contains any `..`
+// component. It looks at the raw input (split on both `/` and the OS
+// separator) so it catches traversal that filepath.Clean would otherwise
+// normalize away.
+func containsTraversalSegmentInPath(p string) bool {
+	parts := strings.FieldsFunc(p, func(r rune) bool {
+		return r == '/' || r == filepath.Separator
+	})
+	for _, seg := range parts {
+		if seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // TaskExpectation defines expected outcomes.
@@ -263,6 +347,25 @@ func LoadTestCase(path string) (*TestCase, error) {
 	// Resolve prompt_file into the prompt message
 	if err := tc.Stimulus.resolvePromptFile(filepath.Dir(path)); err != nil {
 		return nil, fmt.Errorf("test case %s: %w", path, err)
+	}
+
+	// Validate git resources (cheap structural checks; deep checks happen at runtime).
+	for i := range tc.Stimulus.Repos {
+		if err := tc.Stimulus.Repos[i].Validate(); err != nil {
+			return nil, fmt.Errorf("test case %s: repos[%d]: %w", path, i, err)
+		}
+	}
+
+	// Validate workdir does not contain path traversal — full bounded check
+	// happens at execution time against the actual workspace. Check the raw
+	// input so `foo/../bar` style values are rejected too.
+	if wd := tc.Stimulus.WorkDir; wd != "" {
+		if filepath.IsAbs(wd) {
+			return nil, fmt.Errorf("test case %s: workdir %q must be a relative path", path, wd)
+		}
+		if containsTraversalSegmentInPath(wd) {
+			return nil, fmt.Errorf("test case %s: workdir %q must not contain '..' segments", path, wd)
+		}
 	}
 
 	return &tc, nil
