@@ -167,14 +167,17 @@ type CopilotEngineBuilderOptions struct {
 func NewCopilotEngineBuilder(defaultModelID string, options *CopilotEngineBuilderOptions) *CopilotEngineBuilder {
 	var client CopilotClient
 	ownsClient := false
+	cliArgs := modelCLIArgs(defaultModelID)
 
 	if options == nil || options.NewCopilotClient == nil {
 		// Production: share one SDK process across all engines + graders.
-		client = SharedClient(SharedClientOptions{})
+		client = SharedClient(SharedClientOptions{CLIArgs: cliArgs})
 	} else {
 		copilotOptions := &copilot.ClientOptions{
 			// workspace is set at the session level, instead of at the client.
 			LogLevel: "error",
+
+			CLIArgs: cliArgs,
 
 			AutoStart:   utils.Ptr(false), // we handle start in Initialize()
 			AutoRestart: utils.Ptr(true),  // this is a default, but just in case the defaults change...
@@ -193,6 +196,19 @@ func NewCopilotEngineBuilder(defaultModelID string, options *CopilotEngineBuilde
 
 	builder.engine.client = client
 	return builder
+}
+
+func modelCLIArgs(defaultModelID string) []string {
+	if defaultModelID == "" {
+		return []string{}
+	}
+	// --model forces the configured model at CLI startup, overriding any
+	// user preference in the local Copilot settings.json (located under
+	// the user's home directory on Unix and %USERPROFILE% on Windows) or
+	// experiment flights that would otherwise cause the embedded CLI to
+	// use unintended models. SessionConfig.Model still takes precedence
+	// for per-session overrides via Execute.
+	return []string{"--model", defaultModelID}
 }
 
 func (b *CopilotEngineBuilder) Build() *CopilotEngine {
@@ -323,7 +339,6 @@ func (e *CopilotEngine) Execute(ctx context.Context, req *ExecutionRequest) (*Ex
 	var session CopilotSession
 
 	permRequestCallback := allowAllTools
-
 	if req.PermissionHandler != nil {
 		permRequestCallback = req.PermissionHandler
 	}

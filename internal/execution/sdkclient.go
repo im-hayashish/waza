@@ -2,9 +2,11 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -12,31 +14,40 @@ import (
 	"github.com/microsoft/waza/internal/utils"
 )
 
-// SharedClientOptions configures the lazily-constructed process-wide Copilot
-// SDK client returned by [SharedClient]. Only the first call wins; subsequent
-// calls receive the already-built client regardless of options.
+// SharedClientOptions configures a lazily-constructed process-wide Copilot SDK
+// client returned by [SharedClient]. Clients are shared by CLIArgs key; within
+// each key, only the first call wins and subsequent calls receive the
+// already-built client regardless of options.
 type SharedClientOptions struct {
 	// LogLevel passed through to the underlying copilot.Client. Defaults to
 	// "error" when blank.
 	LogLevel string
+	// CLIArgs passed through to the underlying copilot.Client. Calls with the
+	// same CLIArgs share one process; calls with different CLIArgs get separate
+	// processes because CLIArgs are startup-only.
+	CLIArgs []string
 }
 
 var (
-	sharedOnce      sync.Once
-	sharedClient    CopilotClient
+	sharedMu        sync.Mutex
+	sharedClients   map[string]CopilotClient
+	sharedClosed    bool
 	sharedShutdown  sync.Once
 	sharedErr       error
 	sharedConstruct = newCopilotClient // overridable for tests
 	embeddedCLIPath = embedded.Path    // overridable for tests
 )
 
+var errSharedClientClosed = errors.New("shared Copilot client has been shut down")
+
 // SharedClient returns a lazily-constructed, process-wide [CopilotClient].
 //
 // Rationale (#135 R2): the embedded Copilot CLI process is expensive to
 // spawn / tear down. Now that all per-call state (workdir, model, MCP
 // servers, skill dirs, system message) is provided to CreateSession and
-// ResumeSessionWithOptions, a single SDK client can serve every
-// [CopilotEngine] (one per --model) and every grader within a `waza run`.
+// ResumeSessionWithOptions, a single SDK client can serve compatible
+// [CopilotEngine] instances and graders within a `waza run`. Startup-only
+// CLIArgs (for example --model) are part of the compatibility key.
 //
 // The client is started lazily on first use by [CopilotEngine.Initialize] (or
 // by an explicit [Start] caller) and is stopped exactly once via
@@ -47,25 +58,43 @@ var (
 // [newCopilotClient] (package-private) or pass a custom NewCopilotClient
 // factory via [CopilotEngineBuilderOptions].
 func SharedClient(opts SharedClientOptions) CopilotClient {
-	sharedOnce.Do(func() {
-		logLevel := opts.LogLevel
-		if logLevel == "" {
-			logLevel = "error"
-		}
-		clientOptions, err := sharedClientOptions(logLevel)
-		if err != nil {
-			slog.Warn("Copilot CLI path resolution failed; refusing PATH fallback", "error", err)
-			sharedClient = &startupErrorClient{err: err}
-			return
-		}
-		sharedClient = sharedConstruct(clientOptions)
-	})
-	return sharedClient
+	key := sharedClientKey(opts.CLIArgs)
+
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
+
+	if sharedClients == nil {
+		sharedClients = make(map[string]CopilotClient)
+	}
+	if sharedClosed {
+		return &startupErrorClient{err: errSharedClientClosed}
+	}
+	if client := sharedClients[key]; client != nil {
+		return client
+	}
+
+	logLevel := opts.LogLevel
+	if logLevel == "" {
+		logLevel = "error"
+	}
+	clientOptions, err := sharedClientOptions(logLevel, opts.CLIArgs)
+	if err != nil {
+		slog.Warn("Copilot CLI path resolution failed; refusing PATH fallback", "error", err)
+		sharedClients[key] = &startupErrorClient{err: err}
+		return sharedClients[key]
+	}
+	sharedClients[key] = sharedConstruct(clientOptions)
+	return sharedClients[key]
 }
 
-func sharedClientOptions(logLevel string) (*copilot.ClientOptions, error) {
+func sharedClientKey(cliArgs []string) string {
+	return strings.Join(cliArgs, "\x00")
+}
+
+func sharedClientOptions(logLevel string, cliArgs []string) (*copilot.ClientOptions, error) {
 	opts := &copilot.ClientOptions{
 		LogLevel:    logLevel,
+		CLIArgs:     append([]string{}, cliArgs...),
 		AutoStart:   utils.Ptr(false),
 		AutoRestart: utils.Ptr(true),
 	}
@@ -129,11 +158,27 @@ func (c *startupErrorClient) ListModels(context.Context) ([]copilot.ModelInfo, e
 // once from the top-level command after all engines have been Shutdown and
 // all graders have completed.
 func ShutdownSharedClient(_ context.Context) error {
-	if sharedClient == nil {
+	sharedMu.Lock()
+	clients := make([]CopilotClient, 0, len(sharedClients))
+	for _, client := range sharedClients {
+		clients = append(clients, client)
+	}
+	if len(clients) > 0 {
+		sharedClosed = true
+	}
+	sharedMu.Unlock()
+
+	if len(clients) == 0 {
 		return nil
 	}
 	sharedShutdown.Do(func() {
-		sharedErr = sharedClient.Stop()
+		var errs []error
+		for _, client := range clients {
+			if err := client.Stop(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		sharedErr = errors.Join(errs...)
 	})
 	return sharedErr
 }
@@ -141,8 +186,10 @@ func ShutdownSharedClient(_ context.Context) error {
 // resetSharedClientForTest restores SharedClient to a pristine state. For
 // tests only.
 func resetSharedClientForTest() {
-	sharedOnce = sync.Once{}
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
 	sharedShutdown = sync.Once{}
-	sharedClient = nil
+	sharedClients = nil
+	sharedClosed = false
 	sharedErr = nil
 }
