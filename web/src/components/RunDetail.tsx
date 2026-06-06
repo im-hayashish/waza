@@ -13,12 +13,16 @@ import type { TaskResult, GraderResult } from "../api/client";
 import {
   formatDuration,
   formatCost,
+  formatCredits,
   formatNumber,
   formatPercent,
   formatRelativeTime,
   costSourceTooltip,
 } from "../lib/format";
 import { InfoTooltip } from "./InfoTooltip";
+
+const CREDITS_TOOLTIP =
+  "Premium request count reported by the Copilot SDK — not dollars.";
 
 /** Format a confidence interval as a percentage range string. */
 function formatCIRange(lower: number, upper: number): string {
@@ -259,9 +263,14 @@ export default function RunDetail({ id }: { id: string }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <StatCard label="Pass Rate" value={formatPercent(passRate)} />
         <StatCard label="Tokens" value={formatNumber(data.tokens)} />
+        <StatCard
+          label="Credits"
+          value={formatCredits(data.premiumRequests ?? 0)}
+          labelExtra={<InfoTooltip text={CREDITS_TOOLTIP} />}
+        />
         <StatCard
           label="Cost"
           value={formatCost(data.cost)}
