@@ -31,7 +31,6 @@ func (h *Handler) CaptureFailure(result *models.RunResult, exitCode int, stderr,
 	if result == nil {
 		return
 	}
-
 	if result.Status != models.StatusFailed && result.Status != models.StatusError {
 		return
 	}
@@ -192,7 +191,6 @@ func truncate(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
 	}
-
 	if len(s) <= maxLen {
 		return s
 	}
@@ -200,6 +198,6 @@ func truncate(s string, maxLen int) string {
 	if maxLen <= len(suffix) {
 		return suffix[:maxLen]
 	}
-	prefixLen := max(0, maxLen-len(suffix))
+	prefixLen := maxLen - len(suffix)
 	return s[:prefixLen] + suffix
 }

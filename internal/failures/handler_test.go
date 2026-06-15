@@ -75,7 +75,6 @@ func TestCaptureFailureNilResultDoesNotPanic(t *testing.T) {
 
 	handler.CaptureFailure(nil, 1, "stderr", "stdout")
 }
-
 func TestExtractErrorPatterns(t *testing.T) {
 	tests := []struct {
 		name   string
