@@ -64,13 +64,6 @@
       },
       "description": "Task-level graders applied to this task's output."
     },
-    "follow_up_prompts": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "Sequential follow-up prompts sent after the initial prompt, reusing the same session and workspace."
-    },
     "skill_directories": {
       "type": "array",
       "description": "List of directories containing agent skills for this task (overrides eval-level skill_directories)",
@@ -91,6 +84,12 @@
       "type": "object",
       "additionalProperties": false,
       "description": "Input stimulus for the task. Must specify either prompt or prompt_file (not both).",
+      "not": {
+        "required": [
+          "responder",
+          "follow_up_prompts"
+        ]
+      },
       "oneOf": [
         {
           "required": [
@@ -148,6 +147,35 @@
             "type": "string"
           },
           "description": "Environment variables set during task execution."
+        },
+        "follow_up_prompts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Sequential follow-up prompts sent after the initial prompt, reusing the same session and workspace. Mutually exclusive with responder."
+        },
+        "responder": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["instructions", "max_followups"],
+          "description": "LLM-backed surrogate user that answers the skill's follow-up questions. Mutually exclusive with follow_up_prompts.",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Model used for the responder LLM. Defaults to the eval-level config.model."
+            },
+            "instructions": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Describes the target configuration the responder represents and the rule for abstaining."
+            },
+            "max_followups": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum number of responder replies before the loop stops."
+            }
+          }
         }
       }
     },

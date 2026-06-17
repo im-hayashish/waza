@@ -3,6 +3,7 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -20,12 +21,21 @@ import (
 	"github.com/microsoft/waza/internal/graders"
 	"github.com/microsoft/waza/internal/hooks"
 	"github.com/microsoft/waza/internal/models"
+	"github.com/microsoft/waza/internal/responder"
 	"github.com/microsoft/waza/internal/template"
 	"github.com/microsoft/waza/internal/transcript"
 	"github.com/microsoft/waza/internal/utils"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
+
+// responderClassifier classifies an agent message into a responder decision
+// and tears down its session when the run finishes. Implemented by
+// *responder.Classifier; faked in tests.
+type responderClassifier interface {
+	Classify(ctx context.Context, agentMessage string) (responder.Decision, error)
+	Close(ctx context.Context) error
+}
 
 // EvalRunner orchestrates the execution of tests.
 //
@@ -34,6 +44,10 @@ type EvalRunner struct {
 	cfg     *config.EvalConfig
 	engine  execution.AgentEngine
 	verbose bool
+
+	// newClassifier builds a responder classifier for a task. Overridable in
+	// tests; defaults to a responder backed by the runner's engine.
+	newClassifier func(cfg models.ResponderConfig, defaultModel string) responderClassifier
 
 	// Task filtering
 	taskFilters []string
@@ -139,6 +153,9 @@ func NewEvalRunner(cfg *config.EvalConfig, engine execution.AgentEngine, opts ..
 		verbose:        cfg.Verbose(),
 		listeners:      []ProgressListener{},
 		failureHandler: failures.NewHandler(),
+	}
+	r.newClassifier = func(cfg models.ResponderConfig, defaultModel string) responderClassifier {
+		return responder.New(r.engine, cfg, defaultModel)
 	}
 	for _, o := range opts {
 		o(r)
@@ -1080,8 +1097,12 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 		})
 	}
 
-	// Execute follow-up prompts if defined
-	if len(tc.Stimulus.FollowUps) > 0 {
+	// Drive multi-turn: responder loop takes precedence; otherwise static
+	// follow-ups. Validation guarantees these are mutually exclusive.
+	var responderInfo *models.ResponderInfo
+	if tc.Stimulus.Responder != nil {
+		responderInfo = r.executeResponderLoop(ctx, tc, resp)
+	} else if len(tc.Stimulus.FollowUps) > 0 {
 		r.executeFollowUps(ctx, tc, resp)
 	}
 
@@ -1161,6 +1182,7 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 		ErrorMsg:         resp.ErrorMsg,
 		SkillInvocations: skillInvocations,
 		WorkspaceDir:     resp.WorkspaceDir,
+		Responder:        responderInfo,
 	})
 }
 
@@ -1315,6 +1337,123 @@ func (r *EvalRunner) executeFollowUps(ctx context.Context, tc *models.TestCase, 
 			}
 		}
 	}
+}
+
+// executeResponderLoop drives a multi-turn run using an LLM-backed surrogate
+// user. After each agent turn it classifies the agent's latest message and
+// either replies (sending a new agent prompt), stops, or aborts on abstain.
+// It mutates resp in place (mirroring executeFollowUps) and returns a summary.
+func (r *EvalRunner) executeResponderLoop(ctx context.Context, tc *models.TestCase, resp *execution.ExecutionResponse) *models.ResponderInfo {
+	cfg := *tc.Stimulus.Responder
+	classifier := r.newClassifier(cfg, r.cfg.Spec().Config.ModelID)
+	defer func() {
+		// Tear down the persistent responder session with a detached context so
+		// cleanup still runs even if ctx was canceled during the run.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := classifier.Close(cleanupCtx); err != nil {
+			slog.WarnContext(ctx, "failed to clean up responder session",
+				"test", tc.DisplayName, "error", err)
+		}
+	}()
+
+	info := &models.ResponderInfo{}
+	left := cfg.MaxFollowups
+
+	for left > 0 {
+		decision, err := classifier.Classify(ctx, resp.FinalOutput)
+		if err != nil {
+			resp.ErrorMsg = fmt.Sprintf("responder error: %v", err)
+			info.Outcome = models.ResponderOutcomeError
+			info.Reason = err.Error()
+			return info
+		}
+
+		switch decision.Kind {
+		case responder.DecisionStop:
+			info.Outcome = models.ResponderOutcomeStopped
+			return info
+
+		case responder.DecisionAbstain:
+			resp.ErrorMsg = fmt.Sprintf("responder abstained: %s", decision.Reason)
+			info.Outcome = models.ResponderOutcomeAbstained
+			info.Reason = decision.Reason
+			return info
+
+		case responder.DecisionReply:
+			if !r.sendResponderReply(ctx, tc, resp, decision.Answer, info.FollowupsSent+1) {
+				info.Outcome = models.ResponderOutcomeError
+				info.Reason = resp.ErrorMsg
+				return info
+			}
+			info.FollowupsSent++
+			left--
+		}
+	}
+
+	// Reaching this point means the loop only exited via successful replies
+	// (Stop, Abstain, and error paths all return early), and validation
+	// guarantees MaxFollowups >= 1, so a reply must have run on the final
+	// iteration. We exhausted the reply budget before the responder signaled
+	// stop or abstain; we can't tell whether the agent would have asked again.
+	info.Outcome = models.ResponderOutcomeCapExhausted
+	slog.WarnContext(ctx, "responder budget exhausted before stop/abstain signal",
+		"test", tc.DisplayName, "max_followups", cfg.MaxFollowups)
+	return info
+}
+
+// sendResponderReply sends one responder answer to the agent session, reusing
+// the session and workspace, and merges the agent's response into resp. It
+// returns false (and sets resp.ErrorMsg) on failure.
+func (r *EvalRunner) sendResponderReply(ctx context.Context, tc *models.TestCase, resp *execution.ExecutionResponse, answer string, turn int) bool {
+	followReq, err := r.buildExecutionRequest(tc)
+	if err != nil {
+		resp.ErrorMsg = fmt.Sprintf("responder reply %d setup failed: %v", turn, err)
+		return false
+	}
+	followReq.Message = answer
+	followReq.SessionID = resp.SessionID
+	followReq.WorkspaceDir = resp.WorkspaceDir
+
+	if r.verbose {
+		r.notifyProgress(ProgressEvent{
+			EventType: EventAgentPrompt,
+			TestName:  tc.DisplayName,
+			Details:   map[string]any{"message": answer, "responder_reply": turn},
+		})
+	}
+
+	timeout, err := r.executionTimeout(tc)
+	if err != nil {
+		resp.ErrorMsg = fmt.Sprintf("responder reply %d setup failed: %v", turn, err)
+		return false
+	}
+	followCtx, cancelFollow := context.WithTimeout(ctx, timeout)
+	followResp, err := r.engine.Execute(followCtx, followReq)
+	cancelFollow()
+	if err != nil {
+		resp.ErrorMsg = fmt.Sprintf("responder reply %d failed: %v", turn, err)
+		return false
+	}
+	if followResp.ErrorMsg != "" {
+		resp.ErrorMsg = fmt.Sprintf("responder reply %d: %s", turn, followResp.ErrorMsg)
+		return false
+	}
+
+	resp.Events = append(resp.Events, followResp.Events...)
+	resp.ToolCalls = append(resp.ToolCalls, followResp.ToolCalls...)
+	resp.SkillInvocations = append(resp.SkillInvocations, followResp.SkillInvocations...)
+	resp.DurationMs += followResp.DurationMs
+	resp.FinalOutput = followResp.FinalOutput
+	resp.WorkspaceFiles = followResp.WorkspaceFiles
+	if followResp.Usage != nil {
+		if resp.Usage == nil {
+			resp.Usage = followResp.Usage
+		} else {
+			resp.Usage = models.AggregateUsageStats([]*models.UsageStats{resp.Usage, followResp.Usage})
+		}
+	}
+	return true
 }
 
 func (r *EvalRunner) loadResources(tc *models.TestCase) []execution.ResourceFile {

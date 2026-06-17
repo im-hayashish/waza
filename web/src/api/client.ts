@@ -65,6 +65,14 @@ export interface SessionDigest {
   errors: string[];
 }
 
+export type ResponderOutcome = "stopped" | "abstained" | "cap_exhausted" | "error";
+
+export interface ResponderInfo {
+  followupsSent: number;
+  outcome: ResponderOutcome;
+  reason?: string;
+}
+
 export interface TaskResult {
   name: string;
   outcome: string;
@@ -74,6 +82,7 @@ export interface TaskResult {
   graderResults: GraderResult[];
   transcript?: TranscriptEvent[];
   sessionDigest?: SessionDigest;
+  responder?: ResponderInfo;
   bootstrapCI?: BootstrapCI;
   isSignificant?: boolean;
 }
