@@ -58,8 +58,9 @@ func resolvePromptGraderTimeout() time.Duration {
 }
 
 type promptGrader struct {
-	args models.PromptGraderParameters
-	name string
+	args   models.PromptGraderParameters
+	name   string
+	rubric *Rubric
 }
 
 func NewPromptGrader(name string, args models.PromptGraderParameters) (*promptGrader, error) {
@@ -67,13 +68,30 @@ func NewPromptGrader(name string, args models.PromptGraderParameters) (*promptGr
 		return nil, errors.New("missing name")
 	}
 
+	var rubric *Rubric
+	if strings.TrimSpace(args.Rubric) != "" {
+		r, err := ResolveRubric(args.Rubric)
+		if err != nil {
+			return nil, fmt.Errorf("rubric %q: %w", args.Rubric, err)
+		}
+		rubric = r
+		// If neither an inline prompt nor a rubric body would seed the judge,
+		// the grader has nothing to send. The rubric body is required by
+		// Rubric.Validate, so reaching here means the rubric resolved cleanly
+		// and supplies the prompt.
+		if args.Prompt == "" {
+			args.Prompt = rubric.Body
+		}
+	}
+
 	if args.Prompt == "" {
-		return nil, errors.New("required field 'prompt' is missing")
+		return nil, errors.New("required field 'prompt' is missing (provide 'prompt' or 'rubric')")
 	}
 
 	return &promptGrader{
-		name: name,
-		args: args,
+		name:   name,
+		args:   args,
+		rubric: rubric,
 	}, nil
 }
 
@@ -111,9 +129,10 @@ func (p *promptGrader) gradeIndependent(ctx context.Context, gradingContext *Con
 			}
 			resumeID = gradingContext.SessionID
 		}
+		message := p.renderJudgePrompt(gradingContext)
 		resp, err := executePromptGrader(ctx, gradingContext, &execution.ExecutionRequest{
 			ModelID:              p.args.Model,
-			Message:              p.args.Prompt,
+			Message:              message,
 			Tools:                wazaTools.Tools,
 			MessageMode:          execution.MessageModeEnqueue,
 			Streaming:            true,
@@ -168,14 +187,57 @@ func (p *promptGrader) gradeIndependent(ctx context.Context, gradingContext *Con
 			Passed:   len(wazaTools.Failures) == 0 && len(wazaTools.Passes) > 0,
 			Score:    score,
 			Feedback: feedback,
-			Details: map[string]any{
-				"response": respContent,
-				"prompt":   p.args.Prompt,
-				"passes":   strings.Join(wazaTools.Passes, ";"),
-				"failures": strings.Join(wazaTools.Failures, ";"),
-			},
+			Details:  p.detailsWith(message, respContent, wazaTools.Passes, wazaTools.Failures),
 		}, nil
 	})
+}
+
+// detailsWith builds the per-grade Details map, including rubric metadata when
+// the grader was configured with a rubric reference.
+func (p *promptGrader) detailsWith(prompt, response string, passes, failures []string) map[string]any {
+	details := map[string]any{
+		"response": response,
+		"prompt":   prompt,
+		"passes":   strings.Join(passes, ";"),
+		"failures": strings.Join(failures, ";"),
+	}
+	if p.rubric != nil {
+		details["rubric"] = map[string]any{
+			"name":    p.rubric.Name,
+			"version": p.rubric.Version,
+			"scale":   string(p.rubric.Scale),
+			"source":  p.rubric.Source,
+		}
+	}
+	return details
+}
+
+// renderJudgePrompt returns the final prompt to send to the judge. When the
+// grader was configured with a rubric *and* the grading context carries a
+// candidate output (i.e. the judge will not be resuming the agent's session),
+// the rubric template is expanded with the candidate output so the judge has
+// something to evaluate. Otherwise the configured prompt is returned as-is to
+// preserve the existing inline-prompt behavior.
+//
+// With continue_session: true, the judge resumes the agent's live session and
+// reads the conversation directly — injecting Output here would be redundant
+// (and misleading if Output is some stale or summarized snapshot), so we leave
+// the rubric body untouched in that mode.
+func (p *promptGrader) renderJudgePrompt(gradingContext *Context) string {
+	if p.rubric == nil || gradingContext == nil {
+		return p.args.Prompt
+	}
+	if p.args.ContinueSession {
+		return p.args.Prompt
+	}
+	if strings.TrimSpace(gradingContext.Output) == "" {
+		return p.args.Prompt
+	}
+	taskInput := ""
+	if gradingContext.TestCase != nil {
+		taskInput = gradingContext.TestCase.Stimulus.Message
+	}
+	return p.rubric.RenderPrompt(taskInput, "", gradingContext.Output)
 }
 
 func executePromptGrader(ctx context.Context, gradingContext *Context, req *execution.ExecutionRequest) (*execution.ExecutionResponse, error) {
@@ -326,6 +388,22 @@ func (p *promptGrader) gradePairwise(ctx context.Context, gradingContext *Contex
 			PositionConsistent: positionConsistent,
 		}
 
+		details := map[string]any{
+			"pairwise": pairwise,
+			"pass1":    resultAB,
+			"pass2":    resultBA,
+			"prompt":   p.args.Prompt,
+			"mode":     "pairwise",
+		}
+		if p.rubric != nil {
+			details["rubric"] = map[string]any{
+				"name":    p.rubric.Name,
+				"version": p.rubric.Version,
+				"scale":   string(p.rubric.Scale),
+				"source":  p.rubric.Source,
+			}
+		}
+
 		return &models.GraderResults{
 			Name:   p.name,
 			Type:   p.Kind(),
@@ -333,13 +411,7 @@ func (p *promptGrader) gradePairwise(ctx context.Context, gradingContext *Contex
 			Score:  score,
 			Feedback: fmt.Sprintf("pairwise: winner=%s, magnitude=%s, consistent=%v",
 				finalWinner, finalMagnitude, positionConsistent),
-			Details: map[string]any{
-				"pairwise": pairwise,
-				"pass1":    resultAB,
-				"pass2":    resultBA,
-				"prompt":   p.args.Prompt,
-				"mode":     "pairwise",
-			},
+			Details: details,
 		}, nil
 	})
 }
