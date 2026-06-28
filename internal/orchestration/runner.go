@@ -22,6 +22,7 @@ import (
 	"github.com/microsoft/waza/internal/hooks"
 	"github.com/microsoft/waza/internal/models"
 	"github.com/microsoft/waza/internal/responder"
+	"github.com/microsoft/waza/internal/telemetry"
 	"github.com/microsoft/waza/internal/template"
 	"github.com/microsoft/waza/internal/transcript"
 	"github.com/microsoft/waza/internal/utils"
@@ -72,6 +73,11 @@ type EvalRunner struct {
 	listeners  []ProgressListener
 
 	failureHandler *failures.Handler
+
+	// telemetry is the OpenTelemetry provider used to emit eval/task/turn
+	// spans. Nil means tracing is off; the helpers in internal/telemetry
+	// degrade to no-op tracers in that case.
+	telemetry *telemetry.Provider
 }
 
 // ProgressListener receives progress updates
@@ -145,6 +151,16 @@ func WithSkipGraders() RunnerOption {
 	}
 }
 
+// WithTelemetry attaches an OpenTelemetry provider so the runner emits
+// eval/task/turn/tool_call/model_call spans. Pass nil (or omit) to disable
+// tracing; in that case the runner's internal calls fall through the
+// no-op tracer and the runner behaves exactly as it did before.
+func WithTelemetry(p *telemetry.Provider) RunnerOption {
+	return func(r *EvalRunner) {
+		r.telemetry = p
+	}
+}
+
 // NewEvalRunner creates a new test runner. The caller owns the engine and is responsible for initializing and shutting it down as needed.
 func NewEvalRunner(cfg *config.EvalConfig, engine execution.AgentEngine, opts ...RunnerOption) *EvalRunner {
 	r := &EvalRunner{
@@ -206,11 +222,22 @@ func (r *EvalRunner) RunBenchmark(ctx context.Context) (*models.EvaluationOutcom
 
 	spec := r.cfg.Spec()
 
+	// Open the root telemetry span for the whole eval. The span is a no-op
+	// when telemetry is disabled, so this call is always safe.
+	evalCtx, evalSpan := telemetry.StartEvalSpan(ctx, r.telemetry, telemetry.EvalInfo{
+		Name:   spec.Name,
+		Skill:  spec.SkillName,
+		Engine: spec.Config.EngineType,
+		Model:  spec.Config.ModelID,
+		RunID:  fmt.Sprintf("run-%d", time.Now().Unix()),
+	})
+	defer evalSpan.End()
+
 	if spec.Baseline {
-		return r.runBaselineComparison(ctx)
+		return r.runBaselineComparison(evalCtx)
 	}
 
-	return r.runNormalBenchmark(ctx)
+	return r.runNormalBenchmark(evalCtx)
 }
 
 // runNormalBenchmark executes a normal single-pass evaluation
@@ -906,6 +933,14 @@ func (r *EvalRunner) runConcurrent(ctx context.Context, testCases []*models.Test
 func (r *EvalRunner) runTest(ctx context.Context, tc *models.TestCase, testNum, totalTests int) (models.TestOutcome, bool) {
 	spec := r.cfg.Spec()
 
+	// Open a per-task span. The span ends with the function via defer so
+	// both the cached and uncached paths report timing to the tracer.
+	taskCtx, taskSpan := telemetry.StartTaskSpan(ctx, r.telemetry, telemetry.TaskInfo{
+		TestID:      tc.TestID,
+		DisplayName: tc.DisplayName,
+	})
+	defer taskSpan.End()
+
 	// Check cache if enabled
 	if r.cache != nil {
 		cacheKey, err := cache.CacheKey(spec, tc, r.cfg.FixtureDir())
@@ -915,7 +950,7 @@ func (r *EvalRunner) runTest(ctx context.Context, tc *models.TestCase, testNum, 
 				return *cachedOutcome, true
 			}
 			// Run the test and cache the result
-			outcome := r.runTestUncached(ctx, tc, testNum, totalTests)
+			outcome := r.runTestUncached(taskCtx, tc, testNum, totalTests)
 			// Store in cache and log any failures
 			if err := r.cache.Put(cacheKey, &outcome); err != nil {
 				fmt.Fprintf(os.Stderr, "[WARN] Failed to write cache for test %q: %v\n", tc.DisplayName, err)
@@ -925,7 +960,7 @@ func (r *EvalRunner) runTest(ctx context.Context, tc *models.TestCase, testNum, 
 	}
 
 	// No cache or cache key generation failed
-	return r.runTestUncached(ctx, tc, testNum, totalTests), false
+	return r.runTestUncached(taskCtx, tc, testNum, totalTests), false
 }
 
 func (r *EvalRunner) writeTaskTranscript(tc *models.TestCase, outcome models.TestOutcome, startTime time.Time) {
@@ -1055,6 +1090,19 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 		})
 	}
 
+	// Open the per-turn span around the initial Execute call. Follow-ups
+	// (executeFollowUps / executeResponderLoop) are children of the task
+	// span, not this turn — they open their own turn spans below — to keep
+	// the hierarchy flat: task → turn(initial) + turn(follow-up) + ...
+	turnCtx, turnSpan := telemetry.StartTurnSpan(ctx, r.telemetry, telemetry.TurnInfo{
+		Number: 1,
+		Trial:  runNum,
+		Kind:   "initial",
+		Model:  r.cfg.Spec().Config.ModelID,
+		Prompt: req.Message,
+	})
+	defer turnSpan.End()
+
 	// Emit agent prompt event before execution
 	if r.verbose {
 		r.notifyProgress(ProgressEvent{
@@ -1074,7 +1122,7 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 			ErrorMsg:   err.Error(),
 		})
 	}
-	execCtx, cancelExec := context.WithTimeout(ctx, timeout)
+	execCtx, cancelExec := context.WithTimeout(turnCtx, timeout)
 	resp, err := r.engine.Execute(execCtx, req)
 	cancelExec()
 	if err != nil {
@@ -1085,6 +1133,11 @@ func (r *EvalRunner) executeRun(ctx context.Context, tc *models.TestCase, runNum
 			ErrorMsg:   err.Error(),
 		})
 	}
+
+	// Emit child tool_call/model_call spans from the engine response. These
+	// are after-the-fact records (waza only learns about them when Execute
+	// returns) so the spans collapse to a single timestamp under the turn.
+	emitChildSpans(turnCtx, r.telemetry, turnSpan, resp, r.cfg.Spec().Config.ModelID)
 
 	// Emit agent response event after execution
 	if r.verbose {
@@ -1312,18 +1365,36 @@ func (r *EvalRunner) executeFollowUps(ctx context.Context, tc *models.TestCase, 
 			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d setup failed: %v", i+1, len(tc.Stimulus.FollowUps), err)
 			break
 		}
-		followCtx, cancelFollow := context.WithTimeout(ctx, timeout)
+		// Wrap each follow-up Execute call in its own turn span so
+		// multi-turn telemetry (tool_call/model_call children) nests
+		// under the right turn. Turn numbers start at 2 because the
+		// initial Execute is turn 1.
+		turnCtx, turnSpan := telemetry.StartTurnSpan(ctx, r.telemetry, telemetry.TurnInfo{
+			Number:       i + 2,
+			Kind:         "follow_up",
+			Model:        r.cfg.Spec().Config.ModelID,
+			SessionID:    resp.SessionID,
+			WorkspaceDir: resp.WorkspaceDir,
+			Prompt:       prompt,
+		})
+		followCtx, cancelFollow := context.WithTimeout(turnCtx, timeout)
 		followResp, err := r.engine.Execute(followCtx, followReq)
 		cancelFollow()
 		if err != nil {
+			turnSpan.End()
 			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d failed: %v", i+1, len(tc.Stimulus.FollowUps), err)
 			break
 		}
 
 		if followResp.ErrorMsg != "" {
+			emitChildSpans(turnCtx, r.telemetry, turnSpan, followResp, r.cfg.Spec().Config.ModelID)
+			turnSpan.End()
 			resp.ErrorMsg = fmt.Sprintf("follow-up %d/%d: %s", i+1, len(tc.Stimulus.FollowUps), followResp.ErrorMsg)
 			break
 		}
+
+		emitChildSpans(turnCtx, r.telemetry, turnSpan, followResp, r.cfg.Spec().Config.ModelID)
+		turnSpan.End()
 
 		// Aggregate results
 		resp.Events = append(resp.Events, followResp.Events...)
@@ -1431,7 +1502,19 @@ func (r *EvalRunner) sendResponderReply(ctx context.Context, tc *models.TestCase
 		resp.ErrorMsg = fmt.Sprintf("responder reply %d setup failed: %v", turn, err)
 		return false
 	}
-	followCtx, cancelFollow := context.WithTimeout(ctx, timeout)
+	// Wrap the responder reply in its own turn span so its tool_call
+	// and model_call children nest correctly. The initial Execute was
+	// turn 1; each reply is turn 1 + reply_index.
+	turnCtx, turnSpan := telemetry.StartTurnSpan(ctx, r.telemetry, telemetry.TurnInfo{
+		Number:       turn + 1,
+		Kind:         "responder_reply",
+		Model:        r.cfg.Spec().Config.ModelID,
+		SessionID:    resp.SessionID,
+		WorkspaceDir: resp.WorkspaceDir,
+		Prompt:       answer,
+	})
+	defer turnSpan.End()
+	followCtx, cancelFollow := context.WithTimeout(turnCtx, timeout)
 	followResp, err := r.engine.Execute(followCtx, followReq)
 	cancelFollow()
 	if err != nil {
@@ -1439,10 +1522,12 @@ func (r *EvalRunner) sendResponderReply(ctx context.Context, tc *models.TestCase
 		return false
 	}
 	if followResp.ErrorMsg != "" {
+		emitChildSpans(turnCtx, r.telemetry, turnSpan, followResp, r.cfg.Spec().Config.ModelID)
 		resp.ErrorMsg = fmt.Sprintf("responder reply %d: %s", turn, followResp.ErrorMsg)
 		return false
 	}
 
+	emitChildSpans(turnCtx, r.telemetry, turnSpan, followResp, r.cfg.Spec().Config.ModelID)
 	resp.Events = append(resp.Events, followResp.Events...)
 	resp.ToolCalls = append(resp.ToolCalls, followResp.ToolCalls...)
 	resp.SkillInvocations = append(resp.SkillInvocations, followResp.SkillInvocations...)
