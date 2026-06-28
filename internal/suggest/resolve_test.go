@@ -158,12 +158,12 @@ func TestWriteToDir_EmptyTaskPath(t *testing.T) {
 	s := &Suggestion{
 		EvalYAML: validEvalYAML(),
 		Tasks: []GeneratedFile{
-			{Path: "", Content: "id: auto\nname: Auto\ninputs:\n  prompt: hi"},
+			{Path: "", Content: "id: auto\nname: Auto\ninputs:\n  prompt: hi", Confidence: 0.8, Rationale: "matches USE FOR"},
 		},
 	}
 
 	dir := t.TempDir()
-	written, err := s.WriteToDir(dir)
+	written, err := s.WriteToDir(dir, WriteOptions{})
 	require.NoError(t, err)
 	assert.Len(t, written, 2) // eval.yaml + auto-named task
 }
@@ -177,7 +177,7 @@ func TestWriteToDir_EmptyFixturePath(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	written, err := s.WriteToDir(dir)
+	written, err := s.WriteToDir(dir, WriteOptions{})
 	require.NoError(t, err)
 	assert.Len(t, written, 2) // eval.yaml + auto-named fixture
 }
@@ -190,12 +190,12 @@ func TestWriteToDir_AbsolutePathRejected(t *testing.T) {
 	s := &Suggestion{
 		EvalYAML: validEvalYAML(),
 		Tasks: []GeneratedFile{
-			{Path: absPath, Content: "id: x\nname: X\ninputs:\n  prompt: hi"},
+			{Path: absPath, Content: "id: x\nname: X\ninputs:\n  prompt: hi", Confidence: 0.8, Rationale: "matches USE FOR"},
 		},
 	}
 
 	dir := t.TempDir()
-	_, err := s.WriteToDir(dir)
+	_, err := s.WriteToDir(dir, WriteOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid generated path")
 }
@@ -209,7 +209,7 @@ func TestWriteToDir_TraversalPathRejected(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	_, err := s.WriteToDir(dir)
+	_, err := s.WriteToDir(dir, WriteOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid generated path")
 }
@@ -220,7 +220,7 @@ func TestWriteToDir_InvalidEvalYAML(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	_, err := s.WriteToDir(dir)
+	_, err := s.WriteToDir(dir, WriteOptions{})
 	require.Error(t, err)
 }
 

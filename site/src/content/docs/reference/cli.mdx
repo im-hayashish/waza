@@ -532,8 +532,20 @@ waza suggest <skill-path>
 | `--model` | Model to use for suggestions (default: project default model) |
 | `--dry-run` | Print suggestions to stdout (default) |
 | `--apply` | Write suggested files to disk |
+| `--force` | Allow `--apply` to overwrite existing eval/task/fixture files (requires `--apply`) |
+| `--count <n>` | Generate exactly N tasks (default: at least 3 diverse + 1 negative) |
+| `--focus <category>` | Steer generation toward one of `triggers`, `negative-triggers`, `edge-fixtures`, `do-not-use-for`, `parameters` |
 | `--output-dir` | Output directory (default: `<skill-path>/evals`) |
 | `--format` | Output format: `yaml` (default), `json` |
+
+Each suggested task entry carries a `confidence` value in `[0, 1]` and a `rationale` string citing the SKILL.md span it was derived from. Both appear in dry-run / JSON output, but are not written into the task YAML (the task schema rejects unknown fields).
+
+`--apply` is merge-safe by default:
+
+- An existing `eval.yaml` is preserved — new task files are picked up by its existing `tasks:` glob pattern.
+- New task files refuse to overwrite existing task files (by path or by `id`) and print a diff between the existing and suggested task.
+- New fixtures refuse to overwrite existing fixtures.
+- Pass `--force` to overwrite existing eval / task / fixture files.
 
 ### Examples
 
@@ -541,12 +553,50 @@ waza suggest <skill-path>
 # Preview suggestions
 waza suggest skills/code-explainer --dry-run
 
+# Generate exactly 5 negative-trigger tasks and merge them into the existing suite
+waza suggest skills/code-explainer --focus negative-triggers --count 5 --apply
+
 # Write eval/task/fixture files
 waza suggest skills/code-explainer --apply
+
+# Overwrite a previously generated suite
+waza suggest skills/code-explainer --apply --force
 
 # JSON output
 waza suggest skills/code-explainer --format json
 ```
+
+### Worked example: focused negative-trigger coverage
+
+Use `--focus negative-triggers` when a skill's `DO NOT USE FOR` section is underspecified by existing evals:
+
+```bash
+waza suggest skills/code-explainer --focus negative-triggers --count 2 --dry-run
+```
+
+The dry-run output keeps generation metadata outside the task YAML so the proposed case still validates against the task schema:
+
+```yaml
+tasks:
+  - path: tasks/negative-trigger-deploy.yaml
+    confidence: 0.88
+    rationale: "matches SKILL.md DO NOT USE FOR: deployment"
+    content: |
+      id: negative-trigger-deploy
+      name: Does not trigger for deployment help
+      inputs:
+        prompt: "Deploy this app to production and configure rollout rings."
+      expected:
+        should_trigger: false
+```
+
+After review, merge the proposals:
+
+```bash
+waza suggest skills/code-explainer --focus negative-triggers --count 2 --apply
+```
+
+If a generated task would replace an existing task path or `id`, `--apply` stops and prints a diff. Re-run with `--force` only after confirming the suggested task should replace the curated one.
 
 ## waza tokens
 
