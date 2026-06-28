@@ -1,8 +1,8 @@
 package webapi
 
 import (
-	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -86,13 +86,17 @@ func (fs *FileStore) load() error {
 			return nil
 		}
 
-		var outcome models.EvaluationOutcome
-		if err := json.Unmarshal(data, &outcome); err != nil {
+		ok, err := isOutcomeJSON(data)
+		if err != nil {
+			return nil
+		}
+		if !ok {
 			return nil
 		}
 
-		// Validate that this is a real EvaluationOutcome, not summary.json or other JSON
-		if outcome.BenchName == "" && outcome.Digest.TotalTests == 0 {
+		outcome, err := models.ParseEvaluationOutcome(data, path)
+		if err != nil {
+			slog.Warn("skipping unreadable results artifact", "path", path, "error", err)
 			return nil
 		}
 
@@ -104,7 +108,7 @@ func (fs *FileStore) load() error {
 			}
 			outcome.RunID = strings.TrimSuffix(filepath.ToSlash(relPath), ".json")
 		}
-		fs.runs[outcome.RunID] = &outcome
+		fs.runs[outcome.RunID] = outcome
 		return nil
 	})
 
@@ -116,6 +120,11 @@ func (fs *FileStore) load() error {
 	fs.loaded = true
 	fs.loadErr = nil
 	return nil
+}
+
+func isOutcomeJSON(data []byte) (bool, error) {
+	_, ok, err := models.ProbeEvaluationOutcomeSchemaVersion(data)
+	return ok, err
 }
 
 // ensureLoaded loads data if not already loaded.

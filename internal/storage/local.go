@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -167,13 +168,17 @@ func (ls *LocalStore) load() error {
 			return nil
 		}
 
-		var outcome models.EvaluationOutcome
-		if err := json.Unmarshal(data, &outcome); err != nil {
+		_, ok, err := models.ProbeEvaluationOutcomeSchemaVersion(data)
+		if err != nil {
+			return nil
+		}
+		if !ok {
 			return nil
 		}
 
-		// Skip non-EvaluationOutcome JSON files.
-		if outcome.BenchName == "" && outcome.Digest.TotalTests == 0 {
+		outcome, err := models.ParseEvaluationOutcome(data, path)
+		if err != nil {
+			slog.Warn("skipping unreadable results artifact", "path", path, "error", err)
 			return nil
 		}
 
@@ -185,7 +190,7 @@ func (ls *LocalStore) load() error {
 			outcome.RunID = strings.TrimSuffix(filepath.ToSlash(relPath), ".json")
 		}
 
-		ls.cache[outcome.RunID] = &outcome
+		ls.cache[outcome.RunID] = outcome
 		return nil
 	})
 
