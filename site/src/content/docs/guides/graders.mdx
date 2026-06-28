@@ -621,6 +621,59 @@ At least one constraint must be configured. When both `min_calls` and `max_calls
     min_calls: 3
 ```
 
+### Argument matchers (schema 1.1+)
+
+When you need to assert *what* a tool was called with — not just which tools ran — use the `expect:` field with structured argument matchers. Each entry names a tool and a map of `args:` constraints; the grader checks every entry against the recorded tool calls for the run (the same data that is also serialized into `tool_events[]` in `results.json`).
+
+```yaml
+- type: tool_calls
+  name: edit_correctness
+  config:
+    expect:
+      - tool: edit
+        args:
+          path: { equals: "src/auth.go" }
+          file_text: { contains: "func Login" }
+      - tool: bash
+        args:
+          command: { regex: "^go test " }
+```
+
+Each matcher is a single-key mapping naming exactly one of the kinds below:
+
+| Key           | Matches when …                                                         |
+| ------------- | ---------------------------------------------------------------------- |
+| `equals`      | the argument is deeply equal to the supplied value                      |
+| `regex`       | the stringified argument matches the supplied RE2 pattern               |
+| `contains`    | the stringified argument contains the supplied substring                |
+| `range`       | the numeric argument satisfies the bounds (`gte` / `lte` / `gt` / `lt`) |
+| `json_schema` | the argument validates against the supplied JSON Schema (draft-07+)     |
+
+The `range` matcher accepts any combination of inclusive (`gte`, `lte`) and exclusive (`gt`, `lt`) bounds; at least one must be set:
+
+```yaml
+limit: { range: { gte: 1, lte: 5 } }
+score: { range: { gt: 0.0 } }
+```
+
+`tool_constraint` accepts the same `args:` block on each `expect_tools` entry, so you can require both *which* tool ran and *how* it was called in a single grader:
+
+```yaml
+- type: tool_constraint
+  name: guardrails
+  config:
+    expect_tools:
+      - tool: edit
+        args:
+          path: { regex: "^src/" }
+      - tool: bash
+    reject_tools:
+      - tool: bash
+        command_pattern: "^rm -rf"
+```
+
+Argument matchers apply on top of the existing required/forbidden checks — a tool must still be present (or absent) and *also* satisfy its matchers to count as a pass.
+
 ---
 
 ## Program

@@ -277,3 +277,139 @@ func TestCompareCommand_ShortFormatFlag(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "json", val)
 }
+
+// ---------------------------------------------------------------------------
+// Tool-use aggregate metrics (issue #366).
+// ---------------------------------------------------------------------------
+
+func TestComputeToolMetrics_NoToolData(t *testing.T) {
+	o := sampleOutcome("none", 0.5, 0.5, 0.5)
+	tm := computeToolMetrics(o)
+	require.Equal(t, 0, tm.TotalCalls)
+	require.Equal(t, 0, tm.TasksWithTools)
+	require.Equal(t, 0.0, tm.AvgCallsPerTask)
+	require.Equal(t, 0.0, tm.SuccessRate)
+	require.Equal(t, 0.0, tm.SelectionAccuracy)
+	// histogram map is present; with no runs, no buckets are incremented
+	require.NotNil(t, tm.CallCountHistogram)
+	require.Equal(t, 0, tm.CallCountHistogram["1"])
+	require.Equal(t, 0, tm.CallCountHistogram["2"])
+	require.Equal(t, 0, tm.CallCountHistogram["3+"])
+}
+
+func TestComputeToolMetrics_TotalsAndSuccessRate(t *testing.T) {
+	o := &models.EvaluationOutcome{
+		TestOutcomes: []models.TestOutcome{
+			{
+				Runs: []models.RunResult{{
+					ToolEvents: []models.ToolEvent{
+						{ToolName: "bash", Success: true},
+						{ToolName: "view", Success: true},
+						{ToolName: "bash", Success: false},
+					},
+				}},
+			},
+			{
+				Runs: []models.RunResult{{
+					ToolEvents: []models.ToolEvent{
+						{ToolName: "edit", Success: true},
+					},
+				}},
+			},
+		},
+	}
+	tm := computeToolMetrics(o)
+	require.Equal(t, 4, tm.TotalCalls)
+	require.Equal(t, 2, tm.TasksWithTools)
+	require.InDelta(t, 2.0, tm.AvgCallsPerTask, 1e-9)
+	require.InDelta(t, 0.75, tm.SuccessRate, 1e-9)
+}
+
+func TestComputeToolMetrics_HistogramBuckets(t *testing.T) {
+	mkTask := func(n int) models.TestOutcome {
+		evs := make([]models.ToolEvent, n)
+		for i := range evs {
+			evs[i] = models.ToolEvent{ToolName: "bash", Success: true}
+		}
+		return models.TestOutcome{Runs: []models.RunResult{{ToolEvents: evs}}}
+	}
+	o := &models.EvaluationOutcome{
+		TestOutcomes: []models.TestOutcome{
+			mkTask(0), mkTask(1), mkTask(2), mkTask(5),
+		},
+	}
+	tm := computeToolMetrics(o)
+	require.Equal(t, 1, tm.CallCountHistogram["0"])
+	require.Equal(t, 1, tm.CallCountHistogram["1"])
+	require.Equal(t, 1, tm.CallCountHistogram["2"])
+	require.Equal(t, 1, tm.CallCountHistogram["3+"])
+}
+
+func TestComputeToolMetrics_SelectionAccuracy(t *testing.T) {
+	o := &models.EvaluationOutcome{
+		TestOutcomes: []models.TestOutcome{
+			{Runs: []models.RunResult{{
+				ToolEvents: []models.ToolEvent{{ToolName: "bash", Success: true}},
+				Validations: map[string]models.GraderResults{
+					"calls": {Type: models.GraderKindToolCalls, Passed: true},
+				},
+			}}},
+			{Runs: []models.RunResult{{
+				ToolEvents: []models.ToolEvent{{ToolName: "bash", Success: true}},
+				Validations: map[string]models.GraderResults{
+					"calls": {Type: models.GraderKindToolCalls, Passed: false},
+				},
+			}}},
+			// Task without a tool_calls grader is excluded from denominator.
+			{Runs: []models.RunResult{{
+				ToolEvents: []models.ToolEvent{{ToolName: "bash", Success: true}},
+			}}},
+		},
+	}
+	tm := computeToolMetrics(o)
+	require.InDelta(t, 0.5, tm.SelectionAccuracy, 1e-9)
+}
+
+func TestHasAnyToolData(t *testing.T) {
+	require.False(t, hasAnyToolData([]toolMetrics{{}, {}}))
+	require.True(t, hasAnyToolData([]toolMetrics{{}, {TotalCalls: 3}}))
+}
+
+// TestComputeToolMetrics_HistogramPerTaskAcrossTrials verifies the histogram
+// buckets per-task (summing across all trials), not per-run. With trials > 1,
+// a task that called one tool per trial should land in a single bucket
+// reflecting the total, never increment multiple buckets.
+func TestComputeToolMetrics_HistogramPerTaskAcrossTrials(t *testing.T) {
+	mkEvent := func() models.ToolEvent {
+		return models.ToolEvent{ToolName: "bash", Success: true}
+	}
+	o := &models.EvaluationOutcome{
+		TestOutcomes: []models.TestOutcome{
+			// Task with 3 trials × 1 call each → 3 calls total → bucket "3+".
+			{Runs: []models.RunResult{
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+			}},
+			// Task with 2 trials, one empty + one with 1 call → 1 total → "1".
+			{Runs: []models.RunResult{
+				{ToolEvents: nil},
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+			}},
+			// Task with 2 trials × 1 call each → 2 total → "2".
+			{Runs: []models.RunResult{
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+				{ToolEvents: []models.ToolEvent{mkEvent()}},
+			}},
+		},
+	}
+	tm := computeToolMetrics(o)
+	require.Equal(t, 0, tm.CallCountHistogram["0"])
+	require.Equal(t, 1, tm.CallCountHistogram["1"])
+	require.Equal(t, 1, tm.CallCountHistogram["2"])
+	require.Equal(t, 1, tm.CallCountHistogram["3+"])
+	// Total across all trials of all tasks: 3 + 1 + 2 = 6.
+	require.Equal(t, 6, tm.TotalCalls)
+	// Three tasks made tool calls.
+	require.Equal(t, 3, tm.TasksWithTools)
+}
