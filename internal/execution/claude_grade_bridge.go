@@ -64,12 +64,17 @@ func startGradeToolBridge(tools []copilot.Tool) (*gradeToolBridge, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen for grade-tool bridge: %w", err)
 	}
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = ln.Close()
+		return nil, fmt.Errorf("grade-tool bridge listener is not TCP: %T", ln.Addr())
+	}
+
 	httpSrv := &http.Server{Handler: streamSrv}
 	go func() { _ = httpSrv.Serve(ln) }()
 
-	port := ln.Addr().(*net.TCPAddr).Port
 	return &gradeToolBridge{
-		url:     fmt.Sprintf("http://127.0.0.1:%d/mcp", port),
+		url:     fmt.Sprintf("http://127.0.0.1:%d/mcp", tcpAddr.Port),
 		httpSrv: httpSrv,
 	}, nil
 }

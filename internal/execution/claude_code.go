@@ -231,7 +231,7 @@ func (e *ClaudeCodeEngine) Execute(ctx context.Context, req *ExecutionRequest) (
 		return nil, err
 	}
 	if mcpConfigPath != "" {
-		defer os.Remove(mcpConfigPath)
+		defer func() { _ = os.Remove(mcpConfigPath) }()
 	}
 
 	// Render the eval's instruction files (and, when grade tools are bridged, the
@@ -243,7 +243,7 @@ func (e *ClaudeCodeEngine) Execute(ctx context.Context, req *ExecutionRequest) (
 		return nil, err
 	}
 	if sysPromptPath != "" {
-		defer os.Remove(sysPromptPath)
+		defer func() { _ = os.Remove(sysPromptPath) }()
 	}
 
 	args := buildClaudeArgs(req, modelID, workspaceDir, mcpConfigPath, sysPromptPath)
@@ -569,12 +569,12 @@ func writeMCPConfig(servers map[string]copilot.MCPServerConfig, bridgeURL string
 		return "", fmt.Errorf("failed to create MCP config file: %w", err)
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return "", fmt.Errorf("failed to write MCP config: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil
@@ -604,12 +604,12 @@ func writeSystemPromptFile(instructions []InstructionFile, tools []copilot.Tool)
 		return "", fmt.Errorf("failed to create system prompt file: %w", err)
 	}
 	if _, err := f.WriteString(sys); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return "", fmt.Errorf("failed to write system prompt file: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil

@@ -1494,7 +1494,7 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 	// engine instead treats a populated SourceDir as its skill *base* directory
 	// (see extractReqParams in copilot.go), which would suppress its cwd-based
 	// skill discovery — so scope this to claude-code to avoid changing copilot
-	// behaviour.
+	// behavior.
 	var sourceDir string
 	if spec.Config.EngineType == "claude-code" {
 		sourceDir = r.cfg.SpecDir()
