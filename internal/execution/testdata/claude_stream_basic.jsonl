@@ -1,0 +1,6 @@
+{"type":"system","subtype":"init","session_id":"sess-basic-0001","model":"claude-haiku-4-5","permissionMode":"bypassPermissions","apiKeySource":"none"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"Run the bash command, then reply done."}]},"session_id":"sess-basic-0001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_basic1","name":"Bash","input":{"command":"echo hello-from-tool","description":"Echo hello-from-tool"}}]},"session_id":"sess-basic-0001"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_basic1","is_error":false,"content":"hello-from-tool"}]},"session_id":"sess-basic-0001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done."}]},"session_id":"sess-basic-0001"}
+{"type":"result","subtype":"success","is_error":false,"num_turns":2,"result":"done.","session_id":"sess-basic-0001","usage":{"input_tokens":18,"output_tokens":168,"cache_read_input_tokens":18074,"cache_creation_input_tokens":18226}}

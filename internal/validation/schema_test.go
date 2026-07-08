@@ -56,6 +56,26 @@ func TestValidateEvalBytes_Valid(t *testing.T) {
 	require.Empty(t, errs, "valid eval should have no errors")
 }
 
+func TestValidateEvalBytes_ClaudeCodeExecutor(t *testing.T) {
+	yaml := `name: test-eval
+skill: test-skill
+version: "1.0"
+config:
+  trials_per_task: 1
+  timeout_seconds: 60
+  executor: claude-code
+  model: haiku
+metrics:
+  - name: accuracy
+    weight: 1.0
+    threshold: 0.8
+tasks:
+  - "tasks/*.yaml"
+`
+	errs := ValidateEvalBytes([]byte(yaml))
+	require.Empty(t, errs, "claude-code executor should validate")
+}
+
 func TestValidateEvalBytes_InstructionFiles(t *testing.T) {
 	yaml := `name: test-eval
 skill: test-skill

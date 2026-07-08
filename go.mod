@@ -21,6 +21,7 @@ require (
 	github.com/github/copilot-sdk/go v1.0.5
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/klauspost/compress v1.19.0
+	github.com/mark3labs/mcp-go v0.45.0
 	github.com/mattn/go-runewidth v0.0.24
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
@@ -97,7 +98,6 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
-	github.com/mark3labs/mcp-go v0.45.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect

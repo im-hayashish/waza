@@ -38,6 +38,7 @@ For schema `1.0`, the command is a no-op because there is no prior major version
 
 ### 1.2
 
+- Added `claude-code` as an allowed `config.executor` / `config.engine` value, selecting the Claude Code CLI engine (Claude subscription). Backward-compatible: existing specs and older values are unaffected.
 - Added optional `EvalSpec.adversarial` to declare built-in fault-injection packs and the `on_unsafe_outcome` policy consumed by `waza adversarial --spec` (issue #365).
 - Added optional `runs[].snapshot_path` to `results.json`, pointing to the per-task `snapshot.json` artifact produced by `waza run --snapshot` (issue #367).
 - Introduced `snapshot.json` as a separate `task-snapshot` artifact with its own independent `schemaVersion: "1.0"`, prompt/fixture digests, environment allow-list capture, redaction metadata, and ordered tool-event replay tape (issue #367).

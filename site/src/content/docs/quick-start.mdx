@@ -74,6 +74,21 @@ Waza bundles the GitHub Copilot CLI used by the `copilot-sdk` executor and extra
 If your Copilot SDK setup uses a custom provider, set `COPILOT_BASE_URL` or `COPILOT_PROVIDER_BASE_URL` instead. Waza will pass the provider configuration to the SDK and skip the default Copilot auth check.
 </Aside>
 
+<Aside type="tip" title="Use a Claude subscription instead (claude-code)">
+To run evaluations on a Claude subscription rather than the Copilot
+premium-request quota, use the `claude-code` executor, which drives the Claude
+Code CLI (`claude`) headlessly:
+
+1. Install the Claude Code CLI so `claude` is on your `PATH`.
+2. Issue a subscription token: `claude setup-token`.
+3. Export it: `export CLAUDE_CODE_OAUTH_TOKEN=<token>`.
+
+Then select it per run with `--executor claude-code` or in a spec via
+`config.executor: claude-code`. `ANTHROPIC_API_KEY` is intentionally ignored so
+usage draws on your subscription seat, and `copilot-sdk` model names work
+unchanged. See the [executor reference](../reference/schema/#executor) for details.
+</Aside>
+
 ## 3. Create Your First Skill
 
 Initialize a project and create a skill:

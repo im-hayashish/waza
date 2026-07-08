@@ -293,16 +293,43 @@ config:
 
 **Type:** string  
 **Default:** mock  
-**Options:** `mock`, `copilot-sdk`
+**Options:** `mock`, `copilot-sdk`, `claude-code`
 
 Execution engine:
 
 - `mock` — Local testing (no API calls)
-- `copilot-sdk` — Real LLM execution
+- `copilot-sdk` — Real LLM execution via the GitHub Copilot CLI (default)
+- `claude-code` — Real LLM execution via the Claude Code CLI (`claude`), billed to a Claude subscription instead of the Copilot premium-request quota
 
 ```yaml
 config:
   executor: copilot-sdk
+```
+
+#### Preparing the `claude-code` executor
+
+The `claude-code` executor drives the Claude Code CLI (`claude`) headlessly, one
+subprocess per task. Prepare it once per machine:
+
+1. Install the Claude Code CLI so `claude` is on your `PATH` (the engine also
+   falls back to `/usr/bin/claude`).
+2. Issue a subscription token: `claude setup-token`.
+3. Export it before running Waza: `export CLAUDE_CODE_OAUTH_TOKEN=<token>`.
+
+`ANTHROPIC_API_KEY` is intentionally removed from the CLI's environment for eval
+runs, so usage draws on your Claude subscription seat rather than metered API
+billing. Model names authored for `copilot-sdk` are accepted unchanged: a bare
+alias such as `haiku` works, and dotted names like `claude-haiku-4.5` are
+normalized automatically to the hyphenated form the CLI expects
+(`claude-haiku-4-5`).
+
+Eval specs — including their graders and multi-turn responder loops — run
+unchanged under `claude-code`; it is a drop-in alternative to `copilot-sdk`.
+
+```yaml
+config:
+  executor: claude-code
+  model: claude-haiku-4.5 # or a bare alias like "haiku"
 ```
 
 ### max_attempts

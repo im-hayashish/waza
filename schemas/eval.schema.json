@@ -149,9 +149,10 @@
           "type": "string",
           "enum": [
             "copilot-sdk",
-            "mock"
+            "mock",
+            "claude-code"
           ],
-          "description": "Execution engine to use. 'copilot-sdk' for real evaluations, 'mock' for testing."
+          "description": "Execution engine to use. 'copilot-sdk' for real evaluations, 'mock' for testing, 'claude-code' to drive the Claude Code CLI headlessly on a Claude subscription."
         },
         "model": {
           "type": "string",

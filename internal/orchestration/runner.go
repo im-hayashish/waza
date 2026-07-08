@@ -1489,6 +1489,17 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 	resolvedSkillPaths := utils.ResolvePaths(skillPaths, r.cfg.SpecDir())
 	noSkills := spec.Config.AllSkillsDisabled()
 
+	// SourceDir is only consumed by the claude-code engine, which walks up from
+	// it to discover skills when skill_directories is omitted. The copilot
+	// engine instead treats a populated SourceDir as its skill *base* directory
+	// (see extractReqParams in copilot.go), which would suppress its cwd-based
+	// skill discovery — so scope this to claude-code to avoid changing copilot
+	// behaviour.
+	var sourceDir string
+	if spec.Config.EngineType == "claude-code" {
+		sourceDir = r.cfg.SpecDir()
+	}
+
 	return &execution.ExecutionRequest{
 		Message:           tc.Stimulus.Message,
 		Context:           tc.Stimulus.Metadata,
@@ -1499,6 +1510,7 @@ func (r *EvalRunner) buildExecutionRequest(tc *models.TestCase) (*execution.Exec
 		SkillName:         spec.SkillName,
 		TaskName:          tc.DisplayName,
 		TaskDescription:   tc.Summary,
+		SourceDir:         sourceDir,
 		SkillPaths:        resolvedSkillPaths,
 		NoSkills:          noSkills,
 		SuppressSkillBody: !spec.Config.ShouldInjectSkillBody(),

@@ -1028,7 +1028,7 @@ config:
   max_attempts: 3          # Retry failed graders up to 3 times (default: 1, no retries)
   timeout_seconds: 300
   parallel: false
-  executor: mock          # or copilot-sdk
+  executor: mock          # or copilot-sdk / claude-code
   model: claude-sonnet-4-20250514
   group_by: model          # Group results by model (or other dimension)
   instruction_files:
@@ -1518,6 +1518,30 @@ Supported environment variables:
 | `COPILOT_BEARER_TOKEN` or `COPILOT_PROVIDER_BEARER_TOKEN` | Bearer token for the custom provider, if required. |
 
 When a custom provider is active, the CLI usage summary labels the SDK request counter as `Provider Requests` instead of `Premium Requests`. Result JSON records `usage.provider: "custom"` and a sanitized `usage.provider_host`; it does not store the full provider URL.
+
+#### Claude Code Executor (Claude subscription)
+
+The `claude-code` executor runs evaluations through the Claude Code CLI
+(`claude`) headlessly, billing usage to a Claude subscription instead of the
+Copilot premium-request quota. Prepare it once:
+
+```bash
+# 1. Install the Claude Code CLI so `claude` is on your PATH
+# 2. Mint a subscription token
+claude setup-token
+# 3. Export it before running Waza
+export CLAUDE_CODE_OAUTH_TOKEN=<token>
+
+# Then run any eval with the claude-code executor:
+waza run eval/eval.yaml --executor claude-code --model haiku
+```
+
+`ANTHROPIC_API_KEY` is intentionally removed from the CLI's environment so usage
+draws on your subscription seat rather than metered API billing. Model names
+authored for `copilot-sdk` work unchanged — bare aliases like `haiku` and dotted
+names like `claude-haiku-4.5` (normalized to `claude-haiku-4-5`) are both
+accepted. Set the executor per run with `--executor claude-code` or in a spec via
+`config.executor: claude-code`.
 
 ### For Waza Repository
 

@@ -757,6 +757,8 @@ func runSingleModel(cmd *cobra.Command, spec *models.EvalSpec, specPath string, 
 		engine = execution.NewCopilotEngineBuilder(spec.Config.ModelID, &execution.CopilotEngineBuilderOptions{
 			NewCopilotClient: newCopilotClientFn, // if nil, uses the real function, otherwise overridable for tests.
 		}).Build()
+	case "claude-code":
+		engine = execution.NewClaudeCodeEngine(spec.Config.ModelID)
 	default:
 		return nil, fmt.Errorf("unknown engine type: %s", spec.Config.EngineType)
 	}
