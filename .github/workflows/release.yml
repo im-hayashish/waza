@@ -162,6 +162,8 @@ jobs:
 
   release-extension:
     name: Release Extension
+    # Fork guard: the azd extension publish flow is upstream-only.
+    if: github.repository == 'microsoft/waza'
     needs: setup-version
     runs-on: ubuntu-latest
     env:

@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   release:
+    # Fork guard: this single-binary release flow is upstream-only.
+    if: github.repository == 'microsoft/waza'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
