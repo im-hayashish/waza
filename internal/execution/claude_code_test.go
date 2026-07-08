@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -269,6 +270,9 @@ func TestBuildClaudeArgs_EphemeralSessionNotPersisted(t *testing.T) {
 // drive the engine's subprocess handling deterministically without a real CLI.
 func writeFakeClaude(t *testing.T, body string) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("fake claude uses a POSIX shell script")
+	}
 	path := filepath.Join(t.TempDir(), "fake-claude.sh")
 	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755))
 	return path
