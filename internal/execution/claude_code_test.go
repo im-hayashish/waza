@@ -424,7 +424,7 @@ func TestWriteSystemPromptFile(t *testing.T) {
 	path, err := writeSystemPromptFile([]InstructionFile{{Path: "proj.md", Content: []byte("always be brief")}}, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, path)
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
